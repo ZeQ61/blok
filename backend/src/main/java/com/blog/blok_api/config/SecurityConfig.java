@@ -53,6 +53,10 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/admin/login",
                                 "/api/auth/forgot-password",
+                                "/api/posts",
+                                "/api/posts/**",
+                                "/api/posts/categories",
+                                "/api/posts/tags",
                                 "/api/comments/**",
                                 "/api/like/**",
                                 "/uploads/**"
@@ -62,9 +66,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/categories").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/user/*/profile-image").authenticated()
                         .requestMatchers(
-                                "/api/posts/**",
-                                "/api/like/**",
-                                "/api/comments/**"
+                                "/api/user/*/profile-image"
                         ).authenticated()
 
                         .requestMatchers("/admin/**").hasRole("ADMIN")
@@ -81,7 +83,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedOrigins(Arrays.asList(
+            "https://blok-maiq-zeki14-icloudcoms-projects.vercel.app",
+            "http://localhost:3000"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
