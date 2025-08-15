@@ -50,8 +50,26 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Preflight istekleri serbest
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // GEÇİCİ: tüm istekler serbest
-                        .anyRequest().permitAll()
+
+                        // Okuma (GET) istekleri herkese açık
+                        .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+
+                        // Kimlik gerektirmeyen auth uçları
+                        .requestMatchers("/api/auth/**").permitAll()
+
+                        // Yazma işlemleri için kimlik doğrulama zorunlu
+                        .requestMatchers(HttpMethod.POST, "/api/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/**").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/**").authenticated()
+
+                        // Admin alanları
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+
+                        // Diğer her şey için auth
+                        .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
