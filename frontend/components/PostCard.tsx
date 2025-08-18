@@ -30,7 +30,8 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
   }
 
   const handleDelete = async () => {
-    if (!token || (!isAdmin && user?.id !== post.author.id) || !onDelete) return
+    const isOwner = String(user?.id) === String(post.author.id)
+    if (!token || (!isAdmin && !isOwner) || !onDelete) return
 
     if (confirm("Bu gönderiyi silmek istediğinizden emin misiniz?")) {
       await onDelete(post.id)
@@ -139,7 +140,7 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
                       <Share2 className="w-4 h-4" />
                       <span>Paylaş</span>
                     </button>
-                    {(isAdmin || user?.id === post.author.id) && (
+                    {(isAdmin || String(user?.id) === String(post.author.id)) && (
                       <button
                         onClick={() => {
                           handleDelete()
