@@ -43,11 +43,26 @@ export function useCategories() {
     }
   }, [handleApiError, handleError])
 
+  const deleteCategory = useCallback(async (id: number) => {
+    try {
+      const res = await apiClient.delete<void>(`/api/categories/${id}`)
+      if (res.status === 204 || res.status === 200) {
+        setCategories((prev) => prev.filter((c) => c.id !== id))
+        return { success: true }
+      }
+      return { success: false, error: res.error || "Kategori silinemedi" }
+    } catch (err) {
+      handleError(err, "useCategories.deleteCategory")
+      handleApiError(err, "Admin - Delete Category")
+      return { success: false, error: "Bağlantı hatası" }
+    }
+  }, [handleApiError, handleError])
+
   useEffect(() => {
     fetchCategories()
   }, [fetchCategories])
 
-  return { categories, loading, error, fetchCategories, createCategory }
+  return { categories, loading, error, fetchCategories, createCategory, deleteCategory }
 }
 
 export function useTags() {

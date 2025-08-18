@@ -5,4 +5,6 @@ import com.blog.blok_api.dto.CategoryDto;
 
 public interface CategoryService {
     CategoryDto createCategory(CategoryCreateDto dto);
+
+    void deleteCategory(Long id);
 }

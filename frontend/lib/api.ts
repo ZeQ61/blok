@@ -57,8 +57,7 @@ class ApiClient {
       if (!response.ok) {
         return { error: text || `HTTP Error: ${status}`, status }
       }
-      // @ts-expect-error allow returning text in data for non-JSON responses
-      return { data: text as unknown as T, status }
+      return { data: (text as unknown as T), status }
     } catch (e) {
       return { error: "Failed to parse response", status }
     }
@@ -273,6 +272,7 @@ export interface CreateCommentRequest {
 export interface Category {
   id: number
   name: string
+  slug?: string
   description?: string
 }
 

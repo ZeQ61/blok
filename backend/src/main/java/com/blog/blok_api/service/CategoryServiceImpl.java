@@ -39,4 +39,12 @@ public class CategoryServiceImpl implements CategoryService {
         response.setDescription(saved.getDescription());
         return response;
     }
+
+    @Override
+    public void deleteCategory(Long id) {
+        if (!categoryRepository.existsById(id)) {
+            throw new IllegalArgumentException("Kategori bulunamadı: " + id);
+        }
+        categoryRepository.deleteById(id);
+    }
 }

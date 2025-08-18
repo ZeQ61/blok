@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useCategories } from "@/hooks/useCategories"
+import { Trash2 } from "lucide-react"
 
 export default function AdminCategoriesPage() {
-  const { categories, loading, createCategory } = useCategories()
+  const { categories, loading, createCategory, deleteCategory } = useCategories()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -60,7 +61,12 @@ export default function AdminCategoriesPage() {
                   <TableCell>{c.id}</TableCell>
                   <TableCell>{c.name}</TableCell>
                   <TableCell>{c.slug}</TableCell>
-                  <TableCell>{c.description || "-"}</TableCell>
+                  <TableCell className="flex items-center gap-2">
+                    <span className="flex-1">{c.description || "-"}</span>
+                    <Button variant="destructive" size="sm" onClick={() => deleteCategory(c.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
