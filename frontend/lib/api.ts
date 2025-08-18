@@ -29,32 +29,38 @@ class ApiClient {
   }
 
   private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-    const status = response.status;
+    const status = response.status
 
-    // Eğer 204 No Content ise, parse etmeye çalışma
+    // 204 No Content
     if (status === 204) {
-      return { status };
+      return { status }
     }
 
-    try {
-      const data = await response.json();
+    const contentType = response.headers.get("content-type") || ""
 
-      if (!response.ok) {
-        return {
-          error: data.message || `HTTP Error: ${status}`,
-          status,
-        };
+    // Try JSON first when content-type hints JSON
+    if (contentType.includes("application/json")) {
+      try {
+        const data = await response.json()
+        if (!response.ok) {
+          return { error: (data as any)?.message || `HTTP Error: ${status}`, status }
+        }
+        return { data, status }
+      } catch {
+        // fallthrough to text parsing
       }
+    }
 
-      return {
-        data,
-        status,
-      };
-    } catch (error) {
-      return {
-        error: "Failed to parse response",
-        status,
-      };
+    // Fallback: try reading as text
+    try {
+      const text = await response.text()
+      if (!response.ok) {
+        return { error: text || `HTTP Error: ${status}`, status }
+      }
+      // @ts-expect-error allow returning text in data for non-JSON responses
+      return { data: text as unknown as T, status }
+    } catch (e) {
+      return { error: "Failed to parse response", status }
     }
   }
 

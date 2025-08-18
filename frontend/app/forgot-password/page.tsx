@@ -20,10 +20,16 @@ export default function ForgotPasswordPage() {
     setError("")
 
     try {
-      const response = await apiClient.post<{ password: string }>("/forgot-password", { email })
+      // Backend endpoint: POST /api/auth/forgot-password
+      // Backend, düz metin (String) döndürebilir; apiClient bunu text olarak da parse edebilir.
+      const response = await apiClient.post<string>("/api/auth/forgot-password", { email })
 
-      if (response.data) {
-        setNewPassword(response.data.password)
+      if (response.status === 200 && response.data) {
+        // Response düz metin: "Yeni şifreniz: <pwd> ..." olabilir.
+        const raw = response.data as unknown as string
+        const match = raw.match(/Yeni şifreniz:\s*([^\s]+)/) || raw.match(/(\b[\w\d!@#$%^&*()_+\-=\[\]{};':",.<>/?]+\b)/)
+        const pwd = match ? match[1] : raw
+        setNewPassword(pwd)
         setSuccess(true)
       } else {
         setError(response.error || "Şifre sıfırlama başarısız")
