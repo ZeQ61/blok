@@ -100,7 +100,7 @@ class ApiClient {
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         method: "POST",
-        headers: this.getAuthOnlyHeaders(), // Content-Type otomatik ayarlansın
+        headers: this.getAuthOnlyHeaders(), // Content-Type otomatik ayarlansın (multipart/form-data)
         body: formData,
       })
 
