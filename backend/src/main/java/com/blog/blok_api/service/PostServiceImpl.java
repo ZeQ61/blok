@@ -13,10 +13,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 @Service
 public class PostServiceImpl implements PostService {
@@ -30,6 +38,9 @@ public class PostServiceImpl implements PostService {
     private final LikeService likeService;
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
+
+    @Value("${app.upload.dir}")
+    private String uploadDir;
     public PostServiceImpl(PostRepository postRepository,
                            UserRepository userRepository,
                            CategoryRepository categoryRepository,
@@ -207,5 +218,28 @@ public class PostServiceImpl implements PostService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public String uploadPostImage(String token, MultipartFile file) throws IOException {
+        // Token'dan kullanıcı ID'sini al
+        Long userId = jwtUtil.extractUserId(token);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + userId));
+
+        // Dosya tipi kontrolü
+        if (!file.getContentType().startsWith("image/")) {
+            throw new IllegalArgumentException("Sadece resim dosyaları yüklenebilir!");
+        }
+
+        // Dosya adı benzersiz olsun
+        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        Path path = Paths.get(uploadDir, fileName);
+        Files.createDirectories(path.getParent());
+
+        // Dosyayı kaydet
+        Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+
+        // Image URL'yi döndür
+        return "/uploads/" + fileName;
+    }
 
 }

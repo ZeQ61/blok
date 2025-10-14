@@ -110,6 +110,31 @@ export function usePosts() {
     }
   }
 
+  const uploadPostImage = async (file: File): Promise<{ success: boolean; imageUrl?: string; error?: string }> => {
+    try {
+      clearError()
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await apiClient.post<string>("/api/posts/upload-image", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      if (response.data) {
+        return { success: true, imageUrl: response.data }
+      } else {
+        handleApiErr(response)
+        return { success: false, error: response.error || "Resim yüklenemedi" }
+      }
+    } catch (error) {
+      handleError(error, "uploadPostImage")
+      handleApiError(error, "Posts - Upload Image")
+      return { success: false, error: "Bağlantı hatası" }
+    }
+  }
+
   const retryFetch = () => {
     fetchPosts()
   }
@@ -126,6 +151,7 @@ export function usePosts() {
     createPost,
     toggleLike,
     deletePost,
+    uploadPostImage,
     retryFetch,
   }
 }

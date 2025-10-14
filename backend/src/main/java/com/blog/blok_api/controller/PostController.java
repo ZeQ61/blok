@@ -11,7 +11,9 @@ import com.blog.blok_api.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.io.IOException;
 
 
 @RestController
@@ -115,7 +117,14 @@ public class PostController {
         return ResponseEntity.ok(topPosts);
     }
 
-
-
+    @PostMapping("/upload-image")
+    public ResponseEntity<String> uploadPostImage(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
+        String token = authHeader.replace("Bearer ", "");
+        String imageUrl = postService.uploadPostImage(token, file);
+        return ResponseEntity.ok(imageUrl);
+    }
 
 } 

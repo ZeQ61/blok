@@ -163,6 +163,20 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
             {/* Content */}
             <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{post.content}</p>
 
+            {/* Cover Image */}
+            {post.coverImageUrl && (
+              <div className="mt-4">
+                <img
+                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${post.coverImageUrl}`}
+                  alt={post.title}
+                  className="w-full max-w-2xl h-64 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow duration-300"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
+
             {/* Category */}
             <div className="mt-3">
               <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 text-green-800 dark:text-green-200">

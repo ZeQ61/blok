@@ -16,7 +16,7 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
   const { token, user } = useAuth()
   const { categories } = useCategories()
   const { tags } = useTags()
-  const { createPost } = usePosts()
+  const { createPost, uploadPostImage } = usePosts()
 
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
@@ -25,8 +25,12 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [error, setError] = useState("")
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
 
   const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const emojis = ["😀", "😂", "❤️", "👍", "🎉", "🔥", "💯", "✨", "🚀", "💡", "🌟", "⚡"]
 
@@ -55,11 +59,25 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
     setError("")
 
     try {
+      let coverImageUrl = ""
+      
+      // Eğer resim seçilmişse önce yükle
+      if (selectedImage) {
+        const imageUrl = await handleImageUpload()
+        if (imageUrl) {
+          coverImageUrl = imageUrl
+        } else {
+          setIsSubmitting(false)
+          return
+        }
+      }
+
       const result = await createPost({
         title: title.trim(),
         content: content.trim(),
         categoryId: selectedCategoryId,
         tagIds: selectedTagIds,
+        coverImageUrl: coverImageUrl,
       })
 
       if (result.success) {
@@ -67,7 +85,12 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         setContent("")
         setSelectedCategoryId(null)
         setSelectedTagIds([])
+        setSelectedImage(null)
+        setImagePreview(null)
         setShowEmojiPicker(false)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
         if (onPostCreated) {
           onPostCreated()
         }
@@ -92,6 +115,69 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
 
   const toggleEmojiPicker = () => {
     setShowEmojiPicker(!showEmojiPicker)
+  }
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Dosya tipi kontrolü
+      if (!file.type.startsWith('image/')) {
+        setError('Sadece resim dosyaları yüklenebilir!')
+        return
+      }
+
+      // Dosya boyutu kontrolü (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Resim boyutu 5MB\'dan küçük olmalıdır!')
+        return
+      }
+
+      setSelectedImage(file)
+      setError('')
+
+      // Preview oluştur
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleImageUpload = async () => {
+    if (!selectedImage) return
+
+    setIsUploadingImage(true)
+    setError('')
+
+    try {
+      const result = await uploadPostImage(selectedImage)
+      if (result.success && result.imageUrl) {
+        // Image URL'yi state'e kaydet (post oluştururken kullanılacak)
+        setSelectedImage(null)
+        setImagePreview(null)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return result.imageUrl
+      } else {
+        setError(result.error || 'Resim yüklenemedi')
+        return null
+      }
+    } catch (error) {
+      setError('Resim yükleme sırasında hata oluştu')
+      return null
+    } finally {
+      setIsUploadingImage(false)
+    }
   }
 
   if (!token) {
@@ -180,6 +266,38 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         </div>
       </div>
 
+      {/* Image Preview */}
+      {imagePreview && (
+        <div className="relative">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Seçilen Resim</label>
+          <div className="relative inline-block">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-full max-w-md h-48 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600"
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors duration-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageSelect}
+        className="hidden"
+      />
+
       {/* Category selection */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Kategori *</label>
@@ -229,10 +347,20 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         <div className="flex items-center space-x-3">
           <button
             type="button"
-            className="p-3 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-600 dark:text-gray-300 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-300 transform hover:scale-110"
+            onClick={() => fileInputRef.current?.click()}
+            className={`p-3 rounded-2xl bg-gradient-to-br transition-all duration-300 transform hover:scale-110 ${
+              selectedImage
+                ? "from-blue-200 to-purple-200 dark:from-blue-900/40 dark:to-purple-900/40 text-blue-700 dark:text-blue-300"
+                : "from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-600 dark:text-gray-300 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20"
+            }`}
             title="Fotoğraf ekle"
+            disabled={isUploadingImage}
           >
-            <ImageIcon className="w-5 h-5" />
+            {isUploadingImage ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <ImageIcon className="w-5 h-5" />
+            )}
           </button>
 
           <div className="relative" ref={emojiPickerRef}>

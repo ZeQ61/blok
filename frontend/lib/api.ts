@@ -220,6 +220,7 @@ export interface Post {
   id: string
   title: string
   content: string
+  coverImageUrl?: string
   author: {
     id: string
     username: string
@@ -245,6 +246,7 @@ export interface CreatePostRequest {
   content: string
   categoryId: number
   tagIds: number[]
+  coverImageUrl?: string
 }
 
 export interface Comment {
