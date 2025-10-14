@@ -116,11 +116,7 @@ export function usePosts() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await apiClient.post<string>("/api/posts/upload-image", formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      const response = await apiClient.post<string>("/api/posts/upload-image", formData)
 
       if (response.data) {
         return { success: true, imageUrl: response.data }
