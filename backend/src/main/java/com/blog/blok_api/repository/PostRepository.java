@@ -33,4 +33,6 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     );
 
     void deleteAllByAuthor(User user);
+    
+    boolean existsBySlug(String slug);
 } 

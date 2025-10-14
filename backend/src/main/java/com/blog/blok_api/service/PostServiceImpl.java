@@ -79,7 +79,7 @@ public class PostServiceImpl implements PostService {
         post.setCategory(category);
         post.setTags(tags);
         post.setAuthor(author);
-        post.setSlug(SlugUtil.toSlug(dto.getTitle()));
+        post.setSlug(SlugUtil.generateUniqueSlug(dto.getTitle()));
         post.setCreatedAt(LocalDateTime.now());
         post.setUpdatedAt(LocalDateTime.now());
         post.setPublished(true);
