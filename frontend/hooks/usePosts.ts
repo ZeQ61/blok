@@ -7,14 +7,18 @@ import { handleApiError } from "@/lib/errorReporting"
 
 function mapPostResponseDtoToPost(post: any): Post {
   return {
-    ...post,
+    id: String(post.id || ''),
+    title: post.title || '',
+    content: post.content || '',
     coverImageUrl: post.coverImageUrl || post.coverImageURL || undefined,
-    category: { id: 0, name: post.categoryName },
+    category: { id: 0, name: post.categoryName || '' },
     tags: post.tagNames?.map((name: string, i: number) => ({ id: i, name })) || [],
-    author: post.author || { id: '', username: 'Bilinmeyen' },
-    isLiked: post.likedByCurrentUser,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
+    author: post.author || { id: '', username: 'Bilinmeyen', profileImgUrl: undefined },
+    createdAt: post.createdAt || '',
+    updatedAt: post.updatedAt || '',
+    likeCount: post.likeCount || 0,
+    commentCount: post.commentCount || 0,
+    isLiked: post.likedByCurrentUser || false,
   };
 }
 
@@ -153,6 +157,51 @@ export function usePosts() {
     }
   }
 
+  const toggleSavePost = async (postId: string): Promise<{ success: boolean; isSaved?: boolean; error?: string }> => {
+    try {
+      clearError()
+      const response = await apiClient.patch<{ postId: number; liked: boolean; message: string }>(`/api/saved-posts/post/${postId}/toggle`)
+
+      if (response.status === 200 && response.data) {
+        return { success: true, isSaved: response.data.liked }
+      } else {
+        handleApiErr(response)
+        return { success: false, error: response.error || "Post kaydedilemedi" }
+      }
+    } catch (error) {
+      handleError(error, "toggleSavePost")
+      handleApiError(error, "Posts - Toggle Save Post")
+      return { success: false, error: "Bağlantı hatası" }
+    }
+  }
+
+  const getSavedPosts = async (): Promise<{ success: boolean; posts?: Post[]; error?: string }> => {
+    try {
+      clearError()
+      const response = await apiClient.get<any[]>("/api/saved-posts/my-saved-posts")
+
+      if (response.data) {
+        return { success: true, posts: response.data.map(mapPostResponseDtoToPost) }
+      } else {
+        handleApiErr(response)
+        return { success: false, error: response.error || "Kaydedilenler yüklenemedi" }
+      }
+    } catch (error) {
+      handleError(error, "getSavedPosts")
+      handleApiError(error, "Posts - Get Saved Posts")
+      return { success: false, error: "Bağlantı hatası" }
+    }
+  }
+
+  const isPostSaved = async (postId: string): Promise<boolean> => {
+    try {
+      const response = await apiClient.get<boolean>(`/api/saved-posts/post/${postId}/status`)
+      return response.data || false
+    } catch (error) {
+      return false
+    }
+  }
+
   const retryFetch = () => {
     fetchPosts()
   }
@@ -171,6 +220,9 @@ export function usePosts() {
     deletePost,
     uploadPostImage,
     uploadPostMedia,
+    toggleSavePost,
+    getSavedPosts,
+    isPostSaved,
     retryFetch,
   }
 }

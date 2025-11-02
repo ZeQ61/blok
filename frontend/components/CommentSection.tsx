@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Trash2, Reply, Heart, Loader2, AlertCircle } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useComments } from "@/hooks/useComments"
@@ -19,6 +19,15 @@ export default function CommentSection({ postId }: CommentSectionProps) {
   const [replyTo, setReplyTo] = useState<string | null>(null)
   const [replyContent, setReplyContent] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  // Update current time every second for real-time relative dates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,13 +89,40 @@ export default function CommentSection({ postId }: CommentSectionProps) {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    const now = currentTime
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
 
-    if (diffInMinutes < 1) return "Az önce"
-    if (diffInMinutes < 60) return `${diffInMinutes}dk önce`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}sa önce`
-    return `${Math.floor(diffInMinutes / 1440)}g önce`
+    if (diffInSeconds < 60) {
+      return diffInSeconds < 1 ? "Az önce" : `${diffInSeconds} sn önce`
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60)
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} dk önce`
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) {
+      return `${diffInHours} sa önce`
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24)
+    if (diffInDays < 7) {
+      return `${diffInDays} gün önce`
+    }
+
+    const diffInWeeks = Math.floor(diffInDays / 7)
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks} hafta önce`
+    }
+
+    const diffInMonths = Math.floor(diffInDays / 30)
+    if (diffInMonths < 12) {
+      return `${diffInMonths} ay önce`
+    }
+
+    const diffInYears = Math.floor(diffInDays / 365)
+    return `${diffInYears} yıl önce`
   }
 
   const CommentItem = ({ comment, isReply = false }: { comment: any; isReply?: boolean }) => (

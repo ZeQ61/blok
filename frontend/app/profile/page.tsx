@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 import Header from "@/components/Header"
 import PostCard from "@/components/PostCard"
-import { User, Heart, MessageCircle, Calendar } from "lucide-react"
+import { User, Heart, MessageCircle, Calendar, Bookmark } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { usePosts } from "@/hooks/usePosts"
 import { useToast } from "@/hooks/use-toast"
@@ -47,13 +47,14 @@ interface Post {
 export default function ProfilePage() {
   const { user, isAuthenticated, refreshProfile } = useAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"posts" | "likes" | "comments">("posts")
+  const [activeTab, setActiveTab] = useState<"posts" | "likes" | "comments" | "saved">("posts")
   const [posts, setPosts] = useState<Post[]>([])
   const [likedPosts, setLikedPosts] = useState<Post[]>([])
   const [commentedPosts, setCommentedPosts] = useState<Post[]>([])
+  const [savedPosts, setSavedPosts] = useState<Post[]>([])
   const [stats, setStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const { deletePost } = usePosts()
+  const { deletePost, getSavedPosts } = usePosts()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -91,6 +92,13 @@ export default function ProfilePage() {
     setLikedPosts((likedRes.data || []).map(mapDtoToPost))
   }
 
+  const fetchSavedPosts = async () => {
+    const result = await getSavedPosts()
+    if (result.success && result.posts) {
+      setSavedPosts(result.posts)
+    }
+  }
+
   const fetchUserData = async () => {
     setLoading(true)
     try {
@@ -113,6 +121,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (activeTab === "likes") {
       fetchLikedPosts()
+    } else if (activeTab === "saved") {
+      fetchSavedPosts()
     }
   }, [activeTab])
 
@@ -120,6 +130,7 @@ export default function ProfilePage() {
     setPosts(posts.filter((post) => post.id !== postId))
     setLikedPosts(likedPosts.filter((post) => post.id !== postId))
     setCommentedPosts(commentedPosts.filter((post) => post.id !== postId))
+    setSavedPosts(savedPosts.filter((post) => post.id !== postId))
   }
 
   const handlePostLiked = async (postId: string) => {
@@ -181,6 +192,7 @@ export default function ProfilePage() {
     if (activeTab === "posts") return posts
     if (activeTab === "likes") return likedPosts
     if (activeTab === "comments") return commentedPosts
+    if (activeTab === "saved") return savedPosts
     return []
   }
 
@@ -286,6 +298,19 @@ export default function ProfilePage() {
                   <span>Commented Posts</span>
                 </div>
               </button>
+              <button
+                onClick={() => setActiveTab("saved")}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  activeTab === "saved"
+                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                }`}
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <Bookmark className="w-4 h-4" />
+                  <span>Saved Posts</span>
+                </div>
+              </button>
             </div>
           </div>
 
@@ -314,9 +339,10 @@ export default function ProfilePage() {
               {getCurrentPosts().length === 0 && (
                 <div className="card p-12 text-center">
                   <p className="text-gray-500 dark:text-gray-400 text-lg">
-                    {activeTab === "posts" && "You haven't posted anything yet."}
-                    {activeTab === "likes" && "You haven't liked any posts yet."}
-                    {activeTab === "comments" && "You haven't commented on any posts yet."}
+                    {activeTab === "posts" && "Henüz hiç gönderi paylaşmadınız."}
+                    {activeTab === "likes" && "Henüz hiç gönderi beğenmediniz."}
+                    {activeTab === "comments" && "Henüz hiç gönderiye yorum yapmadınız."}
+                    {activeTab === "saved" && "Henüz hiç gönderi kaydetmediniz."}
                   </p>
                 </div>
               )}

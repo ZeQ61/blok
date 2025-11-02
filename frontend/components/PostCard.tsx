@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Heart, MessageCircle, Trash2, Tag, Share2, Bookmark, MoreHorizontal, Calendar } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import CommentSection from "./CommentSection"
 import ShareModal from "./ShareModal"
 import type { Post } from "@/lib/api"
 import { getImageUrl } from "@/lib/utils"
+import { usePosts } from "@/hooks/usePosts"
 
 interface PostCardProps {
   post: Post
@@ -16,11 +17,29 @@ interface PostCardProps {
 
 export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
   const { user, isAdmin, token } = useAuth()
+  const { toggleSavePost, isPostSaved } = usePosts()
   const [showComments, setShowComments] = useState(false)
   const [isLiking, setIsLiking] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  // Check if post is saved on mount
+  useEffect(() => {
+    if (token) {
+      isPostSaved(post.id).then(setIsBookmarked)
+    }
+  }, [post.id, token])
+
+  // Update current time every second for real-time relative dates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleLike = async () => {
     if (!token || isLiking || !onLike) return
@@ -28,6 +47,22 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
     setIsLiking(true)
     await onLike(post.id)
     setIsLiking(false)
+  }
+
+  const handleBookmark = async () => {
+    if (!token || isSaving) return
+
+    setIsSaving(true)
+    try {
+      const result = await toggleSavePost(post.id)
+      if (result.success) {
+        setIsBookmarked(result.isSaved || false)
+      }
+    } catch (error) {
+      console.error("Bookmark hatası:", error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleDelete = async () => {
@@ -66,13 +101,40 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+    const now = currentTime
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
 
-    if (diffInHours < 1) return "Az önce"
-    if (diffInHours < 24) return `${diffInHours} saat önce`
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)} gün önce`
-    return date.toLocaleDateString("tr-TR")
+    if (diffInSeconds < 60) {
+      return diffInSeconds < 1 ? "Az önce" : `${diffInSeconds} sn önce`
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60)
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} dk önce`
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) {
+      return `${diffInHours} sa önce`
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24)
+    if (diffInDays < 7) {
+      return `${diffInDays} gün önce`
+    }
+
+    const diffInWeeks = Math.floor(diffInDays / 7)
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks} hafta önce`
+    }
+
+    const diffInMonths = Math.floor(diffInDays / 30)
+    if (diffInMonths < 12) {
+      return `${diffInMonths} ay önce`
+    }
+
+    const diffInYears = Math.floor(diffInDays / 365)
+    return `${diffInYears} yıl önce`
   }
 
   return (
@@ -122,8 +184,8 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
                 {showMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 py-2 slide-in-up z-10">
                     <button
-                      onClick={() => {
-                        setIsBookmarked(!isBookmarked)
+                      onClick={async () => {
+                        await handleBookmark()
                         setShowMenu(false)
                       }}
                       className="flex items-center space-x-3 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors w-full text-left"
@@ -239,12 +301,14 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
 
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setIsBookmarked(!isBookmarked)}
+                  onClick={handleBookmark}
+                  disabled={!token || isSaving}
                   className={`p-2 rounded-xl transition-all duration-300 transform hover:scale-110 ${
                     isBookmarked
                       ? "text-blue-600 dark:text-blue-400"
                       : "text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                  }`}
+                  } ${!token || isSaving ? "opacity-50 cursor-not-allowed" : ""}`}
+                  title={isBookmarked ? "Kaydetmekten çıkar" : "Kaydet"}
                 >
                   <Bookmark className={`w-5 h-5 ${isBookmarked ? "fill-current" : ""}`} />
                 </button>

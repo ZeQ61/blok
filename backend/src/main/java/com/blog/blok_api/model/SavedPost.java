@@ -8,7 +8,9 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "saved_posts")
+@Table(name = "saved_posts", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "post_id"})
+})
 public class SavedPost {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
