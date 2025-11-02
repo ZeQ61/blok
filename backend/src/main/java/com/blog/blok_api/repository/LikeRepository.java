@@ -27,7 +27,13 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     void deleteAllByPostId(Long postId);
     void deleteAllByCommentIdIn(List<Long> commentIds); // önemli!
-    @Query("SELECT l.post FROM Like l WHERE l.user.id = :userId AND l.post IS NOT NULL ORDER BY l.likedAt DESC")
+    @Query("SELECT DISTINCT l.post FROM Like l " +
+           "LEFT JOIN FETCH l.post.author a " +
+           "LEFT JOIN FETCH a.role " +
+           "LEFT JOIN FETCH l.post.category " +
+           "LEFT JOIN FETCH l.post.tags " +
+           "WHERE l.user.id = :userId AND l.post IS NOT NULL " +
+           "ORDER BY l.likedAt DESC")
     List<Post> findLikedPostsByUserId(@Param("userId") Long userId);
 
     List<Like> findAllByUserId(Long userId);
@@ -35,6 +41,14 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     void deleteAllByUser(User user);
 
     void deleteAllByPost(Post post);
+    
+    // Toplu like sayıları için
+    @Query("SELECT l.post.id, COUNT(l) FROM Like l WHERE l.post.id IN :postIds GROUP BY l.post.id")
+    List<Object[]> countLikesByPostIds(@Param("postIds") List<Long> postIds);
+    
+    // Kullanıcının beğendiği post ID'lerini toplu al
+    @Query("SELECT l.post.id FROM Like l WHERE l.user.id = :userId AND l.post.id IN :postIds")
+    List<Long> findLikedPostIdsByUserAndPosts(@Param("userId") Long userId, @Param("postIds") List<Long> postIds);
 }
 
 

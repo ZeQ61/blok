@@ -5,6 +5,7 @@ import com.blog.blok_api.mapper.PostMapper;
 import com.blog.blok_api.model.Post;
 import com.blog.blok_api.model.SavedPost;
 import com.blog.blok_api.model.User;
+import com.blog.blok_api.repository.CommentRepository;
 import com.blog.blok_api.repository.LikeRepository;
 import com.blog.blok_api.repository.PostRepository;
 import com.blog.blok_api.repository.SavedPostRepository;
@@ -14,8 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class SavedPostServiceImpl implements SavedPostService {
@@ -26,19 +31,22 @@ public class SavedPostServiceImpl implements SavedPostService {
     private final JwtUtil jwtUtil;
     private final PostMapper postMapper;
     private final LikeRepository likeRepository;
+    private final CommentRepository commentRepository;
 
     public SavedPostServiceImpl(SavedPostRepository savedPostRepository,
                                 PostRepository postRepository,
                                 UserRepository userRepository,
                                 JwtUtil jwtUtil,
                                 PostMapper postMapper,
-                                LikeRepository likeRepository) {
+                                LikeRepository likeRepository,
+                                CommentRepository commentRepository) {
         this.savedPostRepository = savedPostRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.postMapper = postMapper;
         this.likeRepository = likeRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Override
@@ -77,20 +85,49 @@ public class SavedPostServiceImpl implements SavedPostService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<PostResponseDto> getSavedPostsByUser(String token) throws Exception {
         Long userId = jwtUtil.extractUserId(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new Exception("Kullanıcı bulunamadı"));
 
         List<Post> savedPosts = savedPostRepository.findSavedPostsByUserId(userId);
+        
+        if (savedPosts.isEmpty()) {
+            return List.of();
+        }
+        
+        // Post ID'lerini topla
+        List<Long> postIds = savedPosts.stream().map(Post::getId).toList();
+        
+        // Like sayılarını toplu olarak al
+        Map<Long, Integer> likeCountMap = new HashMap<>();
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
+        for (Object[] result : likeCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            likeCountMap.put(postId, count.intValue());
+        }
+        
+        // Kullanıcının beğendiği postları toplu olarak al
+        Set<Long> likedPostIds = new HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(userId, postIds));
+        
+        // Comment sayılarını toplu olarak al
+        Map<Long, Integer> commentCountMap = new HashMap<>();
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        for (Object[] result : commentCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            commentCountMap.put(postId, count.intValue());
+        }
+
         return savedPosts.stream()
                 .filter(post -> post != null)
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeRepository.countByPostId(post.getId()));
-                    dto.setLikedByCurrentUser(likeRepository.existsByUserAndPost(user, post));
-                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
+                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
+                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
                     return dto;
                 })
                 .toList();

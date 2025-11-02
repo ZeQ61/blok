@@ -144,6 +144,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<PostResponseDto> getAllPosts(String token) {
         User currentUser = null;
         if (token != null && !token.isBlank()) {
@@ -156,35 +157,94 @@ public class PostServiceImpl implements PostService {
 
         final User finalCurrentUser = currentUser;
 
-        // En yeni postları önce getirmek için createdAt'e göre DESC sıralama
-        return postRepository.findAllByOrderByCreatedAtDesc().stream()
+        // Tüm ilişkilerle birlikte postları getir (N+1 problemini önler)
+        List<Post> posts = postRepository.findAllWithRelationsOrderByCreatedAtDesc();
+        
+        if (posts.isEmpty()) {
+            return List.of();
+        }
+        
+        // Post ID'lerini topla
+        List<Long> postIds = posts.stream().map(Post::getId).toList();
+        
+        // Like sayılarını toplu olarak al (her post için ayrı sorgu yerine)
+        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
+        for (Object[] result : likeCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            likeCountMap.put(postId, count.intValue());
+        }
+        
+        // Kullanıcının beğendiği postları toplu olarak al
+        Set<Long> likedPostIds = finalCurrentUser != null 
+                ? new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(finalCurrentUser.getId(), postIds))
+                : Set.of();
+        
+        // Comment sayılarını toplu olarak al
+        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        for (Object[] result : commentCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            commentCountMap.put(postId, count.intValue());
+        }
+        
+        return posts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeService.countByPost(post).intValue());
-                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
-                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
+                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
+                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
                     return dto;
                 })
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<PostResponseDto> getMyPosts(String token) {
         Long userId = jwtUtil.extractUserId(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı"));
 
-        // Kullanıcının postlarını en yeni önce getirmek için createdAt'e göre DESC sıralama
-        List<Post> posts = postRepository.findAllByAuthorOrderByCreatedAtDesc(user);
+        // Kullanıcının postlarını tüm ilişkilerle birlikte getir
+        List<Post> posts = postRepository.findAllByAuthorWithRelationsOrderByCreatedAtDesc(user.getId());
 
-        final User finalCurrentUser = user;
+        if (posts.isEmpty()) {
+            return List.of();
+        }
+        
+        // Post ID'lerini topla
+        List<Long> postIds = posts.stream().map(Post::getId).toList();
+        
+        // Like sayılarını toplu olarak al
+        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
+        for (Object[] result : likeCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            likeCountMap.put(postId, count.intValue());
+        }
+        
+        // Kullanıcının beğendiği postları toplu olarak al
+        Set<Long> likedPostIds = new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(user.getId(), postIds));
+
+        // Comment sayılarını toplu olarak al
+        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        for (Object[] result : commentCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            commentCountMap.put(postId, count.intValue());
+        }
+
         return posts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeService.countByPost(post).intValue());
-                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
-                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
+                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
+                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -222,11 +282,15 @@ public class PostServiceImpl implements PostService {
 
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<PostResponseDto> getTop5MostLikedPosts(String token) {
-        Pageable top5 = (Pageable) PageRequest.of(0, 5);
+        Pageable top5 = PageRequest.of(0, 5);
 
         List<Post> topPosts = postRepository.findTop5MostLikedPosts(top5);
+        
+        if (topPosts.isEmpty()) {
+            return List.of();
+        }
 
         User currentUser = null;
         if (token != null && !token.isBlank()) {
@@ -238,13 +302,39 @@ public class PostServiceImpl implements PostService {
         }
 
         final User finalCurrentUser = currentUser;
+        
+        // Post ID'lerini topla
+        List<Long> postIds = topPosts.stream().map(Post::getId).toList();
+        
+        // Like sayılarını toplu olarak al
+        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
+        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
+        for (Object[] result : likeCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            likeCountMap.put(postId, count.intValue());
+        }
+        
+        // Kullanıcının beğendiği postları toplu olarak al
+        Set<Long> likedPostIds = finalCurrentUser != null 
+                ? new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(finalCurrentUser.getId(), postIds))
+                : Set.of();
+        
+        // Comment sayılarını toplu olarak al
+        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
+        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
+        for (Object[] result : commentCounts) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            commentCountMap.put(postId, count.intValue());
+        }
 
         return topPosts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeService.countByPost(post).intValue());
-                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
-                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
+                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
+                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
                     return dto;
                 })
                 .collect(Collectors.toList());
