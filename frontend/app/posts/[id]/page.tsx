@@ -316,14 +316,30 @@ export default function PostDetailPage() {
             </div>
           </div>
 
-          {/* Cover Image */}
+          {/* Cover Media (Image or Video) */}
           {post.coverImageUrl && (
             <div className="mb-4 rounded-2xl overflow-hidden">
-              <img
-                src={getImageUrl(post.coverImageUrl)}
-                alt={post.title}
-                className="w-full h-auto object-cover"
-              />
+              {post.coverImageUrl.includes('/video/upload') || post.coverImageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? (
+                <video
+                  src={getImageUrl(post.coverImageUrl)}
+                  controls
+                  className="w-full h-auto max-h-[600px] object-contain rounded-2xl bg-black"
+                  onError={(e) => {
+                    console.error("Video yüklenemedi:", e)
+                  }}
+                >
+                  Tarayıcınız video oynatmayı desteklemiyor.
+                </video>
+              ) : (
+                <img
+                  src={getImageUrl(post.coverImageUrl)}
+                  alt={post.title}
+                  className="w-full h-auto object-cover rounded-2xl"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none'
+                  }}
+                />
+              )}
             </div>
           )}
 

@@ -357,39 +357,72 @@ export default function ProfilePage() {
           </div>
         ) : currentPosts.length > 0 ? (
           <div className="grid grid-cols-3 gap-1 mt-4">
-            {currentPosts.map((post) => (
-              <div
-                key={post.id}
-                className="aspect-square bg-gray-200 dark:bg-gray-800 relative group cursor-pointer overflow-hidden rounded-sm"
-                onClick={() => router.push(`/posts/${post.id}`)}
-              >
-                {post.coverImageUrl ? (
-                  <img
-                    src={getImageUrl(post.coverImageUrl)}
-                    alt={post.title}
-                    className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600 p-4">
-                    <div className="text-center">
-                      <p className="text-sm font-medium mb-1">{post.title}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 line-clamp-3">{post.content}</p>
+            {currentPosts.map((post) => {
+              const isVideo = post.coverImageUrl && (
+                post.coverImageUrl.includes('/video/upload') || 
+                post.coverImageUrl.match(/\.(mp4|webm|ogg|mov)$/i)
+              )
+              
+              return (
+                <div
+                  key={post.id}
+                  className="aspect-square bg-gray-200 dark:bg-gray-800 relative group cursor-pointer overflow-hidden rounded-sm"
+                  onClick={() => router.push(`/posts/${post.id}`)}
+                >
+                  {post.coverImageUrl ? (
+                    isVideo ? (
+                      <div className="relative w-full h-full">
+                        <video
+                          src={getImageUrl(post.coverImageUrl)}
+                          className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
+                          muted
+                          playsInline
+                          onMouseEnter={(e) => {
+                            const video = e.currentTarget as HTMLVideoElement
+                            video.currentTime = 1 // Video'nun ilk saniyesini göster
+                            video.play().catch(() => {}) // Autoplay engellenebilir, hata yok say
+                          }}
+                          onMouseLeave={(e) => {
+                            const video = e.currentTarget as HTMLVideoElement
+                            video.pause()
+                            video.currentTime = 0
+                          }}
+                        />
+                        <div className="absolute top-2 right-2 bg-black/70 rounded-full p-1.5">
+                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={getImageUrl(post.coverImageUrl)}
+                        alt={post.title}
+                        className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
+                      />
+                    )
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600 p-4">
+                      <div className="text-center">
+                        <p className="text-sm font-medium mb-1">{post.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 line-clamp-3">{post.content}</p>
+                      </div>
+                    </div>
+                  )}
+                  {/* Hover overlay - Instagram tarzı */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">❤️</span>
+                      <span>{post.likeCount}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">💬</span>
+                      <span>{post.commentCount}</span>
                     </div>
                   </div>
-                )}
-                {/* Hover overlay - Instagram tarzı */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">❤️</span>
-                    <span>{post.likeCount}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">💬</span>
-                    <span>{post.commentCount}</span>
-                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           /* Boş Durum - Instagram tarzı */
