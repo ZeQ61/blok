@@ -1,4 +1,34 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+/**
+ * API Base URL belirleme
+ * - Production'da (Vercel): https://blok.onrender.com
+ * - Localhost: http://localhost:8080
+ */
+const getApiBaseUrl = (): string => {
+  // Environment variable varsa onu kullan (en yüksek öncelik)
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+  
+  // Browser'da çalışıyorsak hostname'e göre belirle
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname
+    
+    // Production ortamları
+    if (hostname.includes("vercel.app") || hostname === "blok-maiq.vercel.app") {
+      return "https://blok.onrender.com"
+    }
+    
+    // Localhost
+    if (hostname.includes("localhost") || hostname.includes("127.0.0.1")) {
+      return "http://localhost:8080"
+    }
+  }
+  
+  // Server-side veya fallback
+  return "http://localhost:8080"
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 export interface ApiResponse<T> {
   data?: T

@@ -84,7 +84,7 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg transform group-hover:scale-110 transition-all duration-300">
               {post.author.profileImgUrl ? (
                 <img
-                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${post.author.profileImgUrl}`}
+                  src={getImageUrl(post.author.profileImgUrl)}
                   alt={post.author.username}
                   className="w-12 h-12 rounded-2xl object-cover"
                   onError={(e) => {
