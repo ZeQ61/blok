@@ -10,6 +10,9 @@ import com.blog.blok_api.repository.CommentRepository;
 import com.blog.blok_api.repository.LikeRepository;
 import com.blog.blok_api.repository.PostRepository;
 import com.blog.blok_api.repository.UserRepository;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 import com.blog.blok_api.security.JwtUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -149,10 +152,25 @@ public class LikeServiceImpl implements LikeService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<PostResponseDto> getPostsLikedByUser(Long userId) {
-        List<Post> likedPosts = likeRepository.findLikedPostsByUserId(userId);
-        return likedPosts.stream()
+        // 1. Önce likedAt'e göre sıralı Post ID'lerini al (en son beğenilen en üstte)
+        List<Long> likedPostIds = likeRepository.findLikedPostIdsByUserId(userId);
+        
+        if (likedPostIds.isEmpty()) {
+            return List.of();
+        }
+
+        // 2. Post ID'lerine göre Post'ları EntityGraph ile eager loading yaparak çek
+        List<Post> likedPosts = postRepository.findByIdsWithRelations(likedPostIds);
+        
+        // 3. Post ID'lerindeki sıralamayı korumak için Map oluştur
+        Map<Long, Post> postMap = likedPosts.stream()
+                .collect(Collectors.toMap(Post::getId, post -> post, (p1, p2) -> p1, LinkedHashMap::new));
+        
+        // 4. Sıralamayı koruyarak Post'ları DTO'ya çevir
+        return likedPostIds.stream()
+                .map(postId -> postMap.get(postId))
                 .filter(post -> post != null)
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);

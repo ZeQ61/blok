@@ -23,5 +23,17 @@ public interface SavedPostRepository extends JpaRepository<SavedPost, Long> {
     void deleteByUserAndPost(User user, Post post);
     void deleteAllByPost(Post post);
     void deleteAllByUser(User user);
+    
+    /**
+     * Belirli post ID'leri için kaydetme sayısını toplu olarak getir
+     * Sonuç: [postId, count] şeklinde Object[] array'leri
+     */
+    @Query("""
+           SELECT sp.post.id, COUNT(sp.id)
+           FROM SavedPost sp
+           WHERE sp.post.id IN :postIds
+           GROUP BY sp.post.id
+           """)
+    List<Object[]> countSavedByPostIds(@Param("postIds") List<Long> postIds);
 }
 

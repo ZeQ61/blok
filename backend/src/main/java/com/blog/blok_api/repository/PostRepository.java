@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * PostRepository - Optimize edilmiş sorgular ile N+1 problemi çözüldü
@@ -63,20 +64,51 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findAllByAuthorWithRelations(@Param("author") User author);
 
     /**
-     * Top-N en çok beğenilenler (ilişkilerle)
-     * LEFT JOIN ile like sayısına göre sıralama
+     * Post ID ile tek post getir (ilişkilerle) - LazyInitializationException önleme
+     * author, author.role ve tags eager olarak yüklenir
      */
     @EntityGraph(attributePaths = { "author", "author.role", "tags" })
     @Query("""
-           SELECT p 
+           SELECT p
+           FROM Post p
+           WHERE p.id = :id
+           """)
+    Optional<Post> findByIdWithRelations(@Param("id") Long id);
+
+    /**
+     * Post ID listesi ile postları getir (ilişkilerle) - LazyInitializationException önleme
+     * ID listesindeki sıralama korunur
+     * author, author.role ve tags eager olarak yüklenir
+     */
+    @EntityGraph(attributePaths = { "author", "author.role", "tags" })
+    @Query("""
+           SELECT p
+           FROM Post p
+           WHERE p.id IN :ids
+           """)
+    List<Post> findByIdsWithRelations(@Param("ids") List<Long> ids);
+
+    /**
+     * Top-N trend post ID'lerini getir - PUANLAMA SİSTEMİ
+     * Puanlama: (beğeni * 5) + (yorum * 10) + (kaydetme * 15) + (görüntülenme * 3)
+     * Bu metod sadece Post ID'lerini döndürür, Post entity'leri için findByIdsWithRelations kullanılmalı
+     */
+    @Query("""
+           SELECT p.id
            FROM Post p 
            LEFT JOIN Like l ON p.id = l.post.id
+           LEFT JOIN Comment c ON p.id = c.post.id AND c.isDeleted = false
+           LEFT JOIN SavedPost sp ON p.id = sp.post.id
            WHERE p.isPublished = true
-           GROUP BY p.id, p.createdAt, p.title, p.slug, p.summary, p.content, 
-                    p.coverImageUrl, p.isPublished, p.viewsCount, p.updatedAt
-           ORDER BY COUNT(l.id) DESC, p.createdAt DESC
+           GROUP BY p.id, p.createdAt, p.viewsCount
+           ORDER BY 
+               (COUNT(DISTINCT l.id) * 5 + 
+                COUNT(DISTINCT c.id) * 10 + 
+                COUNT(DISTINCT sp.id) * 15 + 
+                p.viewsCount * 3) DESC, 
+               p.createdAt DESC
            """)
-    List<Post> findTopMostLikedPostsWithRelations(Pageable pageable);
+    List<Long> findTopTrendingPostIds(Pageable pageable);
 
     /**
      * Belirli post ID'leri için like count (tek sorgu, group-by)
@@ -101,4 +133,17 @@ public interface PostRepository extends JpaRepository<Post, Long> {
            GROUP BY c.post.id
            """)
     List<Object[]> countActiveCommentsByPostIds(@Param("postIds") List<Long> postIds);
+
+    /**
+     * Belirli post ID'leri için views_count'u toplu olarak artır
+     * PERFORMANS: Native query ile tek sorguda güncelleme
+     * Sadece listedeki ID'ler için views_count += 1 yapar
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+        value = "UPDATE posts SET views_count = views_count + 1 WHERE id IN :postIds",
+        nativeQuery = true
+    )
+    @org.springframework.transaction.annotation.Transactional
+    int incrementViewsBatch(@Param("postIds") List<Long> postIds);
 }

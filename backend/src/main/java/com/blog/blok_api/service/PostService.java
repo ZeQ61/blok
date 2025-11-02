@@ -20,4 +20,16 @@ public interface PostService {
     List<PostResponseDto> getTop5MostLikedPosts(String token);
     String uploadPostImage(String token, MultipartFile file) throws IOException;
     String uploadPostMedia(String token, MultipartFile file) throws IOException;
+
+    /**
+     * Toplu post görüntülenme takibi
+     * Kullanıcının ekranda görünen postları için görüntülenme sayısını artırır
+     * Aynı kullanıcı aynı postu tekrar görüntülediğinde sayılmaz
+     * 
+     * @param token JWT token
+     * @param postIds Ekranda görünen post ID'leri
+     * @throws Exception Kullanıcı bulunamadığında
+     */
+    @Transactional
+    void trackMultiplePostViews(String token, List<Long> postIds) throws Exception;
 }

@@ -34,8 +34,18 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     void deleteAllByUser(User user);
     void deleteAllByPost(Post post);
 
-    @Query("SELECT l.post FROM Like l WHERE l.user.id = :userId")
-    List<Post> findLikedPostsByUserId(@Param("userId") Long userId);
+    /**
+     * Kullanıcının beğendiği post ID'lerini getir - EN SON BEĞENİLEN EN ÜSTTE
+     * likedAt'e göre DESC sıralama yapılır
+     * Bu metod sadece Post ID'lerini döndürür, Post entity'leri için PostRepository kullanılmalı
+     */
+    @Query("""
+           SELECT l.post.id
+           FROM Like l
+           WHERE l.user.id = :userId
+           ORDER BY l.likedAt DESC
+           """)
+    List<Long> findLikedPostIdsByUserId(@Param("userId") Long userId);
 
     // ====== OPTİMİZASYON EKLERİ ======
 

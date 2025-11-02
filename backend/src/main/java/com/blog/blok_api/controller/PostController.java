@@ -3,6 +3,7 @@ package com.blog.blok_api.controller;
 import com.blog.blok_api.dto.CategoryDto;
 import com.blog.blok_api.dto.PostRequestDto;
 import com.blog.blok_api.dto.PostResponseDto;
+import com.blog.blok_api.dto.PostViewRequestDto;
 import com.blog.blok_api.dto.TagDto;
 import com.blog.blok_api.security.JwtUtil;
 import com.blog.blok_api.repository.CategoryRepository;
@@ -135,6 +136,24 @@ public class PostController {
         String token = authHeader.replace("Bearer ", "");
         String mediaUrl = postService.uploadPostMedia(token, file);
         return ResponseEntity.ok(mediaUrl);
+    }
+
+    /**
+     * Toplu post görüntülenme takibi endpoint'i
+     * Frontend'den ekranda görünen post ID'lerini alır ve görüntülenme sayısını artırır
+     * 
+     * @param authHeader JWT token (Authorization header)
+     * @param request Ekranda görünen post ID'lerini içeren request body
+     * @return Başarı mesajı
+     */
+    @PostMapping("/views")
+    public ResponseEntity<String> trackPostViews(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestBody PostViewRequestDto request
+    ) throws Exception {
+        String token = authHeader.replace("Bearer ", "");
+        postService.trackMultiplePostViews(token, request.getPostIds());
+        return ResponseEntity.ok("Görüntülenmeler başarıyla kaydedildi.");
     }
 
 } 

@@ -41,6 +41,7 @@ interface Post {
   updatedAt: string
   likeCount: number
   commentCount: number
+  viewsCount: number
   isLiked: boolean
 }
 
@@ -84,6 +85,7 @@ export default function ProfilePage() {
     updatedAt: p.updatedAt,
     likeCount: p.likeCount ?? 0,
     commentCount: p.commentCount ?? 0,
+    viewsCount: p.viewsCount ?? 0,
     isLiked: p.likedByCurrentUser ?? false,
   })
 
@@ -134,14 +136,17 @@ export default function ProfilePage() {
   }
 
   const handlePostLiked = async (postId: string) => {
-    // Eğer comments sekmesindeysek, önce küçük bir optimistic update yap
-    if (activeTab === "comments") {
-      setCommentedPosts((prev) => prev.map((p) => p.id === postId ? {
-        ...p,
-        isLiked: !p.isLiked,
-        likeCount: p.isLiked ? p.likeCount - 1 : p.likeCount + 1,
-      } : p))
-    }
+    // Optimistic update - tüm sekmelerde hemen güncelle
+    const optimisticUpdate = (p: Post) => (p.id === postId ? {
+      ...p,
+      isLiked: !p.isLiked,
+      likeCount: p.isLiked ? p.likeCount - 1 : p.likeCount + 1,
+    } : p)
+
+    setPosts((prev) => prev.map(optimisticUpdate))
+    setLikedPosts((prev) => prev.map(optimisticUpdate))
+    setCommentedPosts((prev) => prev.map(optimisticUpdate))
+    setSavedPosts((prev) => prev.map(optimisticUpdate))
 
     await apiClient.patch(`/api/like/post/${postId}/toggle`)
 
@@ -149,7 +154,7 @@ export default function ProfilePage() {
       const res = await apiClient.get<any>(`/api/posts/${postId}`)
       if (res.data) {
         const updated = mapDtoToPost(res.data)
-        const updater = (p: any) => (p.id === postId ? { ...p, ...updated } : p)
+        const updater = (p: Post) => (p.id === postId ? { ...p, ...updated } : p)
         setPosts((prev) => prev.map(updater))
         setLikedPosts((prev) => {
           const exists = prev.some((p) => p.id === postId)
@@ -159,6 +164,7 @@ export default function ProfilePage() {
           return prev.filter((p) => p.id !== postId)
         })
         setCommentedPosts((prev) => prev.map(updater))
+        setSavedPosts((prev) => prev.map(updater))
       }
     } catch {}
   }

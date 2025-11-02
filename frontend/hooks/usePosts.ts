@@ -18,6 +18,7 @@ function mapPostResponseDtoToPost(post: any): Post {
     updatedAt: post.updatedAt || '',
     likeCount: post.likeCount || 0,
     commentCount: post.commentCount || 0,
+    viewsCount: post.viewsCount || 0,
     isLiked: post.likedByCurrentUser || false,
   };
 }

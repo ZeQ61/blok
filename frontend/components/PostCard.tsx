@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Heart, MessageCircle, Trash2, Tag, Share2, Bookmark, MoreHorizontal, Calendar } from "lucide-react"
+import { Heart, MessageCircle, Trash2, Tag, Share2, Bookmark, MoreHorizontal, Calendar, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import CommentSection from "./CommentSection"
 import ShareModal from "./ShareModal"
 import type { Post } from "@/lib/api"
 import { getImageUrl } from "@/lib/utils"
 import { usePosts } from "@/hooks/usePosts"
+import { usePostViewTracking } from "@/hooks/usePostViewTracking"
 
 interface PostCardProps {
   post: Post
@@ -25,6 +26,9 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  
+  // Post görüntülenme takibi - ekranda göründüğünde otomatik olarak sayılır
+  const postViewRef = usePostViewTracking(post.id)
 
   // Check if post is saved on mount
   useEffect(() => {
@@ -139,7 +143,7 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
 
   return (
     <>
-      <article className="card p-6 slide-in-up group">
+      <article ref={postViewRef} className="card p-6 slide-in-up group">
         <div className="flex items-start space-x-4">
           {/* Avatar */}
           <div className="relative">
@@ -297,6 +301,11 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
                   <MessageCircle className="w-4 h-4" />
                   <span className="font-medium">{post.commentCount}</span>
                 </button>
+
+                <div className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <Eye className="w-4 h-4" />
+                  <span className="font-medium">{post.viewsCount || 0}</span>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">

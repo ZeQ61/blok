@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +37,8 @@ public class PostServiceImpl implements PostService {
     private final LikeService likeService;
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
+    private final PostViewRepository postViewRepository;
+    private final SavedPostRepository savedPostRepository;
     private final Cloudinary cloudinary;
 
     public PostServiceImpl(PostRepository postRepository,
@@ -46,7 +47,12 @@ public class PostServiceImpl implements PostService {
                            TagRepository tagRepository,
                            JwtUtil jwtUtil,
                            PostMapper postMapper,
-                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, Cloudinary cloudinary) {
+                           LikeService likeService, 
+                           LikeRepository likeRepository, 
+                           CommentRepository commentRepository,
+                           PostViewRepository postViewRepository,
+                           SavedPostRepository savedPostRepository,
+                           Cloudinary cloudinary) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -56,6 +62,8 @@ public class PostServiceImpl implements PostService {
         this.likeService = likeService;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
+        this.postViewRepository = postViewRepository;
+        this.savedPostRepository = savedPostRepository;
         this.cloudinary = cloudinary;
     }
 
@@ -107,8 +115,10 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PostResponseDto getPostById(Long id, String token) throws Exception {
-        Post post = postRepository.findById(id)
+        // EntityGraph ile tags'ı eager olarak yükle - LazyInitializationException önleme
+        Post post = postRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new Exception("Post bulunamadı."));
 
         User currentUser = null;
@@ -221,7 +231,6 @@ public class PostServiceImpl implements PostService {
         }
 
         // 1. Posta ait yorumları bul
-
         List<Comment> comments = commentRepository.findAllByPostId(postId);
         List<Long> commentIds = comments.stream()
                 .map(Comment::getId)
@@ -235,30 +244,41 @@ public class PostServiceImpl implements PostService {
         // 3. Posta ait like'ları sil
         likeRepository.deleteAllByPostId(postId);
 
-        // 4. En son post'u sil
+        // 4. Posta ait görüntülenme kayıtlarını sil (foreign key constraint hatası önleme)
+        postViewRepository.deleteAllByPost(post);
+
+        // 5. Posta ait kaydedilmiş post kayıtlarını sil (foreign key constraint hatası önleme)
+        savedPostRepository.deleteAllByPost(post);
+
+        // 6. En son post'u sil
         postRepository.delete(post);
     }
 
 
     /**
-     * En çok beğenilen postları getir - OPTİMİZE EDİLMİŞ
-     * N+1 problemi çözüldü: Batch sorgular kullanılıyor
+     * Trend konular postları getir - PUANLAMA SİSTEMİ İLE
+     * Puanlama: (beğeni * 5) + (yorum * 10) + (kaydetme * 15) + (görüntülenme * 3)
+     * N+1 problemi çözüldü: İki adımlı yaklaşım (ID'ler, sonra EntityGraph ile eager loading)
      */
     @Override
     @Transactional(readOnly = true)
     public List<PostResponseDto> getTop5MostLikedPosts(String token) {
         Pageable top5 = PageRequest.of(0, 5);
 
-        // 1. Top post'ları ilişkilerle birlikte tek sorguda çek
-        List<Post> topPosts = postRepository.findTopMostLikedPostsWithRelations(top5);
-        if (topPosts.isEmpty()) {
+        // 1. Önce puanlama sistemine göre sıralı Post ID'lerini al
+        List<Long> topPostIds = postRepository.findTopTrendingPostIds(top5);
+        if (topPostIds.isEmpty()) {
             return List.of();
         }
 
-        // 2. Post ID'lerini çıkar
-        List<Long> postIds = topPosts.stream().map(Post::getId).collect(Collectors.toList());
+        // 2. Post ID'lerine göre Post'ları EntityGraph ile eager loading yaparak çek
+        List<Post> topPosts = postRepository.findByIdsWithRelations(topPostIds);
+        
+        // 3. Post ID'lerindeki sıralamayı korumak için Map oluştur
+        Map<Long, Post> postMap = topPosts.stream()
+                .collect(Collectors.toMap(Post::getId, post -> post, (p1, p2) -> p1, java.util.LinkedHashMap::new));
 
-        // 3. Current user bilgisini al
+        // 4. Current user bilgisini al
         Long currentUserId = null;
         if (token != null && !token.isBlank()) {
             try {
@@ -268,20 +288,25 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 4. Batch sorgular: Like count, Comment count, Liked post IDs
-        Map<Long, Integer> likeCountMap = getLikeCountsByPostIds(postIds);
-        Map<Long, Integer> commentCountMap = getCommentCountsByPostIds(postIds);
+        // 5. Batch sorgular: Like count, Comment count, Liked post IDs
+        // NOT: Puanlama (beğeni*5 + yorum*10 + kaydetme*15 + görüntülenme*3) sorgu içinde yapılıyor
+        Map<Long, Integer> likeCountMap = getLikeCountsByPostIds(topPostIds);
+        Map<Long, Integer> commentCountMap = getCommentCountsByPostIds(topPostIds);
         Set<Long> likedPostIds = currentUserId != null 
-            ? getLikedPostIdsByUserIdAndPostIds(currentUserId, postIds)
+            ? getLikedPostIdsByUserIdAndPostIds(currentUserId, topPostIds)
             : Set.of();
 
-        // 5. DTO'ları oluştur
-        return topPosts.stream()
+        // 6. Sıralamayı koruyarak DTO'ları oluştur
+        return topPostIds.stream()
+                .map(postId -> postMap.get(postId))
+                .filter(post -> post != null)
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
                     dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
                     dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
                     dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
+                    // viewsCount'u Post entity'sinden al (MapStruct otomatik map eder ama açıkça set ediyoruz)
+                    dto.setViewsCount(post.getViewsCount());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -410,6 +435,28 @@ public class PostServiceImpl implements PostService {
     }
 
     /**
+     * Post ID'leri için kaydetme sayılarını toplu olarak getir
+     * @param postIds Post ID listesi
+     * @return Map<PostId, SavedCount>
+     */
+    private Map<Long, Integer> getSavedCountsByPostIds(List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        List<Object[]> results = savedPostRepository.countSavedByPostIds(postIds);
+        Map<Long, Integer> savedCountMap = new HashMap<>();
+
+        for (Object[] result : results) {
+            Long postId = ((Number) result[0]).longValue();
+            Long count = ((Number) result[1]).longValue();
+            savedCountMap.put(postId, count.intValue());
+        }
+
+        return savedCountMap;
+    }
+
+    /**
      * Kullanıcının beğendiği post ID'lerini toplu olarak getir
      * @param userId Kullanıcı ID
      * @param postIds Post ID listesi
@@ -422,6 +469,73 @@ public class PostServiceImpl implements PostService {
 
         List<Long> likedPostIds = likeRepository.findLikedPostIdsByUserIdAndPostIds(userId, postIds);
         return Set.copyOf(likedPostIds);
+    }
+
+    /**
+     * Toplu post görüntülenme takibi - PERFORMANS ODAKLI
+     * 
+     * İşlem Adımları:
+     * 1. Token'dan user ID al
+     * 2. Boş liste kontrolü
+     * 3. Kullanıcının daha önce görüntülediği post ID'lerini tek sorguda bul
+     * 4. Yeni görüntülenmeler için PostView kayıtları oluştur (batch insert)
+     * 5. views_count'u toplu olarak artır (native query)
+     * 
+     * Toplam sorgu sayısı: 3 (user çekme, görüntülenmiş postlar kontrolü, views_count güncelleme)
+     * PostView kayıtları: Batch save ile toplu insert
+     */
+    @Override
+    @Transactional
+    public void trackMultiplePostViews(String token, List<Long> postIds) throws Exception {
+        // 1. Boş liste kontrolü
+        if (postIds == null || postIds.isEmpty()) {
+            return;
+        }
+
+        // 2. Token'dan user ID al
+        Long userId = jwtUtil.extractUserId(token);
+        if (userId == null) {
+            throw new Exception("Kullanıcı bulunamadı.");
+        }
+
+        // 3. User'ı bul (sadece ID ile, lazy loading)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("Kullanıcı bulunamadı."));
+
+        // 4. Daha önce görüntülenmemiş post ID'lerini bul (TEK SORGU)
+        Set<Long> alreadyViewedPostIds = postViewRepository.findViewedPostIdsByUserIdAndPostIds(userId, postIds);
+        
+        // 5. Yeni görüntülenmeler için post ID'lerini filtrele
+        List<Long> newViewPostIds = postIds.stream()
+                .filter(postId -> !alreadyViewedPostIds.contains(postId))
+                .distinct()
+                .collect(Collectors.toList());
+
+        // 6. Eğer yeni görüntülenme yoksa işlem yapma
+        if (newViewPostIds.isEmpty()) {
+            return;
+        }
+
+        // 7. PostView kayıtları oluştur (batch insert için)
+        LocalDateTime now = LocalDateTime.now();
+        List<PostView> newPostViews = newViewPostIds.stream()
+                .map(postId -> {
+                    Post post = new Post();
+                    post.setId(postId);
+                    
+                    PostView postView = new PostView();
+                    postView.setUser(user);
+                    postView.setPost(post);
+                    postView.setViewedAt(now);
+                    return postView;
+                })
+                .collect(Collectors.toList());
+
+        // 8. PostView kayıtlarını toplu olarak kaydet
+        postViewRepository.saveAll(newPostViews);
+
+        // 9. views_count'u toplu olarak artır (TEK NATIVE QUERY)
+        postRepository.incrementViewsBatch(newViewPostIds);
     }
 
 }

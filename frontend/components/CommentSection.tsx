@@ -150,7 +150,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               <span className="text-gray-500 dark:text-gray-400 text-xs">{formatDate(comment.createdAt)}</span>
             </div>
 
-            {(isAdmin || user?.id === comment.author.id) && (
+            {(isAdmin || String(user?.id) === String(comment.author.id)) && (
               <button
                 onClick={() => handleDeleteComment(comment.id)}
                 className="p-1 text-gray-400 hover:text-red-500 transition-colors"
