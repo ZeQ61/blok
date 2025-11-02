@@ -82,7 +82,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
      */
     @EntityGraph(attributePaths = { "author", "author.role", "tags" })
     @Query("""
-           SELECT p
+           SELECT p 
            FROM Post p
            WHERE p.id IN :ids
            """)

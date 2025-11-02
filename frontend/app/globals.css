@@ -33,6 +33,13 @@
     @apply bg-white dark:bg-gray-800 rounded-3xl shadow-lg border border-gray-100 dark:border-gray-700 transition-all duration-300 hover:shadow-xl hover:shadow-blue-100 dark:hover:shadow-blue-900/20 hover:-translate-y-1;
   }
 
+  /* Sekme alt çizgisi için gradient önleme */
+  .tab-underline {
+    background-color: #2563eb !important;
+    background: #2563eb !important;
+    background-image: none !important;
+  }
+
   .glass-effect {
     @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-white/20 dark:border-gray-700/50;
   }

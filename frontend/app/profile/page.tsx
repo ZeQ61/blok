@@ -5,12 +5,14 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 import Header from "@/components/Header"
 import PostCard from "@/components/PostCard"
-import { User, Heart, MessageCircle, Calendar, Bookmark } from "lucide-react"
+import PostForm from "@/components/PostForm"
+import { Grid3x3, Bookmark, Heart, MessageCircle, Camera, Settings } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { usePosts } from "@/hooks/usePosts"
 import { useToast } from "@/hooks/use-toast"
 import ProfileImageUploader from "@/components/ProfileImageUploader"
 import { getImageUrl } from "@/lib/utils"
+import Link from "next/link"
 
 interface UserStats {
   postsCount: number
@@ -48,13 +50,14 @@ interface Post {
 export default function ProfilePage() {
   const { user, isAuthenticated, refreshProfile } = useAuth()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"posts" | "likes" | "comments" | "saved">("posts")
+  const [activeTab, setActiveTab] = useState<"posts" | "saved" | "likes" | "comments">("posts")
   const [posts, setPosts] = useState<Post[]>([])
   const [likedPosts, setLikedPosts] = useState<Post[]>([])
   const [commentedPosts, setCommentedPosts] = useState<Post[]>([])
   const [savedPosts, setSavedPosts] = useState<Post[]>([])
   const [stats, setStats] = useState<UserStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showPostForm, setShowPostForm] = useState(false)
   const { deletePost, getSavedPosts } = usePosts()
   const { toast } = useToast()
 
@@ -66,8 +69,6 @@ export default function ProfilePage() {
 
     fetchUserData()
   }, [isAuthenticated, router])
-
-  // Update the profile page to handle missing API endpoints gracefully
 
   const mapDtoToPost = (p: any): Post => ({
     id: String(p.id),
@@ -121,10 +122,12 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
-    if (activeTab === "likes") {
-      fetchLikedPosts()
-    } else if (activeTab === "saved") {
+    if (activeTab === "saved") {
       fetchSavedPosts()
+    } else if (activeTab === "likes") {
+      fetchLikedPosts()
+    } else if (activeTab === "comments") {
+      // Comments already fetched in fetchUserData
     }
   }, [activeTab])
 
@@ -133,10 +136,10 @@ export default function ProfilePage() {
     setLikedPosts(likedPosts.filter((post) => post.id !== postId))
     setCommentedPosts(commentedPosts.filter((post) => post.id !== postId))
     setSavedPosts(savedPosts.filter((post) => post.id !== postId))
+    fetchUserData()
   }
 
   const handlePostLiked = async (postId: string) => {
-    // Optimistic update - tüm sekmelerde hemen güncelle
     const optimisticUpdate = (p: Post) => (p.id === postId ? {
       ...p,
       isLiked: !p.isLiked,
@@ -169,192 +172,259 @@ export default function ProfilePage() {
     } catch {}
   }
 
-  // Post silme fonksiyonu
   const handleDeletePost = async (postId: string) => {
     const result = await deletePost(postId)
     if (result.success) {
-      setPosts(posts.filter((post) => post.id !== postId))
-      setLikedPosts(likedPosts.filter((post) => post.id !== postId))
-      setCommentedPosts(commentedPosts.filter((post) => post.id !== postId))
+      handlePostDeleted(postId)
       toast({ title: "Gönderi silindi", description: "Post başarıyla silindi.", variant: "default" })
     } else {
       toast({ title: "Hata", description: result.error || "Gönderi silinemedi.", variant: "destructive" })
     }
   }
 
+  const handlePostCreated = () => {
+    setShowPostForm(false)
+    fetchUserData()
+    toast({ title: "Gönderi oluşturuldu", description: "Post başarıyla paylaşıldı.", variant: "default" })
+  }
+
   if (!isAuthenticated || !user) {
     return null
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-    })
-  }
-
-  // Aktif sekmeye göre postları döndüren fonksiyon
   const getCurrentPosts = () => {
     if (activeTab === "posts") return posts
+    if (activeTab === "saved") return savedPosts
     if (activeTab === "likes") return likedPosts
     if (activeTab === "comments") return commentedPosts
-    if (activeTab === "saved") return savedPosts
     return []
   }
 
+  const currentPosts = getCurrentPosts()
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-all duration-500">
       <Header />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
-          {/* Profile Header */}
-          <div className="card p-6">
-            <div className="flex items-start space-x-6">
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
-                  {user.profileImgUrl ? (
-                    <img
-                      src={getImageUrl(user.profileImgUrl)}
-                      alt={user.username}
-                      className="w-20 h-20 object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = "/placeholder-user.jpg"
-                      }}
-                    />
-                  ) : (
-                    user.username.charAt(0).toUpperCase()
-                  )}
-                </div>
-                <ProfileImageUploader userId={Number(user.id) || 0} />
-              </div>
-
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{user.username}</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">{user.email}</p>
-                {/* Admin etiketi kaldırıldı, gerekirse roleName ile eklenebilir */}
-
-                {stats && (
-                  <div className="flex items-center space-x-2 mt-3 text-sm text-gray-500 dark:text-gray-400">
-                    <Calendar className="w-4 h-4" />
-                    <span>Joined {formatDate(stats.joinedDate)}</span>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Instagram tarzı kullanıcı bilgileri */}
+        <div className="border-b border-gray-300 dark:border-gray-800 pb-8 mb-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+            {/* Profil Resmi */}
+            <div className="flex-shrink-0">
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden border-2 border-gray-300 dark:border-gray-700">
+                {user.profileImgUrl ? (
+                  <img
+                    src={getImageUrl(user.profileImgUrl)}
+                    alt={user.username}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = "/placeholder-user.jpg"
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-3xl md:text-4xl font-bold">
+                    {user.username.charAt(0).toUpperCase()}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Stats */}
-            {stats && (
-              <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.postsCount}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Posts</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.likesCount}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Likes</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.commentsCount}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Comments</div>
+            {/* Kullanıcı Bilgileri */}
+            <div className="flex-1 min-w-0">
+              {/* Üst Satır: Kullanıcı adı ve butonlar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+                <h1 className="text-xl md:text-2xl font-light text-gray-900 dark:text-gray-100">
+                  {user.username}
+                </h1>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/profile/edit"
+                    className="px-4 py-1.5 text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+                  >
+                    Profili düzenle
+                  </Link>
+                  <button
+                    onClick={() => setShowPostForm(!showPostForm)}
+                    className="px-4 py-1.5 text-sm font-medium text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+                  >
+                    Yeni gönderi
+                  </button>
+                  <Link
+                    href="/profile/edit"
+                    className="p-2 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-900 rounded-md transition-colors"
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Link>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Tabs */}
-          <div className="card">
-            <div className="flex border-b border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setActiveTab("posts")}
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === "posts"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <User className="w-4 h-4" />
-                  <span>My Posts</span>
+              {/* İstatistikler */}
+              <div className="flex items-center gap-6 mb-4">
+                <div>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{posts.length}</span>
+                  <span className="text-gray-600 dark:text-gray-400 ml-1">gönderi</span>
                 </div>
-              </button>
-              <button
-                onClick={() => setActiveTab("likes")}
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === "likes"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Heart className="w-4 h-4" />
-                  <span>Liked Posts</span>
+                <div>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">0</span>
+                  <span className="text-gray-600 dark:text-gray-400 ml-1">takipçi</span>
                 </div>
-              </button>
-              <button
-                onClick={() => setActiveTab("comments")}
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === "comments"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <MessageCircle className="w-4 h-4" />
-                  <span>Commented Posts</span>
+                <div>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">0</span>
+                  <span className="text-gray-600 dark:text-gray-400 ml-1">takip</span>
                 </div>
-              </button>
-              <button
-                onClick={() => setActiveTab("saved")}
-                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                  activeTab === "saved"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Bookmark className="w-4 h-4" />
-                  <span>Saved Posts</span>
-                </div>
-              </button>
+              </div>
+
+              {/* Bio */}
+              <div className="mb-2">
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{user.username}</span>
+                {user.bio && (
+                  <p className="text-gray-900 dark:text-gray-100 mt-1">{user.bio}</p>
+                )}
+              </div>
+
+              {/* Profil fotoğrafı yükle */}
+              <div className="mt-4">
+                <ProfileImageUploader userId={Number(user.id) || 0} />
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Posts Content */}
-          {loading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="card p-6 animate-pulse">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/4"></div>
-                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
-                      <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+        {/* Yeni Gönderi Formu */}
+        {showPostForm && (
+          <div className="mb-8">
+            <PostForm onPostCreated={handlePostCreated} />
+          </div>
+        )}
+
+        {/* Navigasyon Sekmeleri - Instagram tarzı minimal */}
+        <div className="border-t border-gray-300 dark:border-gray-800">
+          <div className="flex justify-center items-center gap-8 md:gap-16 flex-wrap">
+            <button
+              onClick={() => setActiveTab("posts")}
+              className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${
+                activeTab === "posts"
+                  ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                  : "border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              <Grid3x3 className="w-4 h-4" />
+              <span className="text-xs font-medium uppercase tracking-wider">Gönderiler</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("likes")}
+              className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${
+                activeTab === "likes"
+                  ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                  : "border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              <span className="text-xs font-medium uppercase tracking-wider">Beğenilenler</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("comments")}
+              className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${
+                activeTab === "comments"
+                  ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                  : "border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span className="text-xs font-medium uppercase tracking-wider">Yorum Yapılanlar</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("saved")}
+              className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${
+                activeTab === "saved"
+                  ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                  : "border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
+              }`}
+            >
+              <Bookmark className="w-4 h-4" />
+              <span className="text-xs font-medium uppercase tracking-wider">Kaydedilenler</span>
+            </button>
+          </div>
+        </div>
+
+        {/* İçerik - Grid Layout (Instagram tarzı) */}
+        {loading ? (
+          <div className="grid grid-cols-3 gap-1 mt-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="aspect-square bg-gray-200 dark:bg-gray-800 animate-pulse rounded-sm"></div>
+            ))}
+          </div>
+        ) : currentPosts.length > 0 ? (
+          <div className="grid grid-cols-3 gap-1 mt-4">
+            {currentPosts.map((post) => (
+              <div
+                key={post.id}
+                className="aspect-square bg-gray-200 dark:bg-gray-800 relative group cursor-pointer overflow-hidden rounded-sm"
+                onClick={() => router.push(`/posts/${post.id}`)}
+              >
+                {post.coverImageUrl ? (
+                  <img
+                    src={getImageUrl(post.coverImageUrl)}
+                    alt={post.title}
+                    className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600 p-4">
+                    <div className="text-center">
+                      <p className="text-sm font-medium mb-1">{post.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 line-clamp-3">{post.content}</p>
                     </div>
                   </div>
+                )}
+                {/* Hover overlay - Instagram tarzı */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">❤️</span>
+                    <span>{post.likeCount}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">💬</span>
+                    <span>{post.commentCount}</span>
+                  </div>
                 </div>
-              ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Boş Durum - Instagram tarzı */
+          <div className="flex flex-col items-center justify-center py-20 mt-8">
+            <div className="w-16 h-16 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center mb-4">
+              <Camera className="w-8 h-8 text-gray-700 dark:text-gray-300" />
             </div>
-          ) : (
-            <div className="space-y-4">
-              {getCurrentPosts().map((post) => (
-                <PostCard key={post.id} post={post} onDelete={handleDeletePost} onLike={handlePostLiked} />
-              ))}
-
-              {getCurrentPosts().length === 0 && (
-                <div className="card p-12 text-center">
-                  <p className="text-gray-500 dark:text-gray-400 text-lg">
-                    {activeTab === "posts" && "Henüz hiç gönderi paylaşmadınız."}
-                    {activeTab === "likes" && "Henüz hiç gönderi beğenmediniz."}
-                    {activeTab === "comments" && "Henüz hiç gönderiye yorum yapmadınız."}
-                    {activeTab === "saved" && "Henüz hiç gönderi kaydetmediniz."}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+            <h2 className="text-xl font-light text-gray-900 dark:text-gray-100 mb-2">
+              {activeTab === "posts"
+                ? "Fotoğraflar Paylaş"
+                : activeTab === "saved"
+                ? "Henüz kaydedilmiş gönderi yok"
+                : activeTab === "likes"
+                ? "Henüz beğenilen gönderi yok"
+                : "Henüz yorum yapılan gönderi yok"}
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-4 text-center max-w-md">
+              {activeTab === "posts"
+                ? "Paylaştığın fotoğraflar profilinde gözükür."
+                : activeTab === "saved"
+                ? "Beğendiğin gönderileri kaydederek burada görüntüleyebilirsin."
+                : activeTab === "likes"
+                ? "Beğendiğin gönderiler burada görünecek."
+                : "Yorum yaptığın gönderiler burada görünecek."}
+            </p>
+            {activeTab === "posts" && (
+              <button
+                onClick={() => setShowPostForm(true)}
+                className="text-blue-600 dark:text-blue-400 font-semibold text-sm hover:underline"
+              >
+                İlk fotoğrafını paylaş
+              </button>
+            )}
+          </div>
+        )}
       </main>
     </div>
   )

@@ -9,12 +9,11 @@ import ErrorAlert from "@/components/ErrorAlert"
 import { TrendingUp, Users, MessageSquare, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { usePosts } from "@/hooks/usePosts"
-import { useCategories, useTags } from "@/hooks/useCategories"
+import { useTags } from "@/hooks/useCategories"
 
 export default function HomePage() {
   const router = useRouter();
   const { posts, loading, error, fetchPosts, createPost, toggleLike, deletePost, retryFetch } = usePosts()
-  const { categories } = useCategories()
   const { tags } = useTags()
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTag, setActiveTag] = useState("")
@@ -102,14 +101,6 @@ export default function HomePage() {
                 </div>
                 <h3 className="font-bold text-gray-900 dark:text-gray-100">{posts.length}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Toplam Gönderi</p>
-              </div>
-
-              <div className="card p-6 text-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <MessageSquare className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="font-bold text-gray-900 dark:text-gray-100">{categories.length}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Kategori</p>
               </div>
             </div>
 

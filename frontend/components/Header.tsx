@@ -5,11 +5,12 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { Moon, Sun, User, LogOut, Sparkles, Bell, Settings } from "lucide-react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { getImageUrl } from "@/lib/utils"
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, logout, isAuthenticated } = useAuth()
   const { isDark, toggleTheme } = useTheme()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -36,18 +37,30 @@ export default function Header() {
           <nav className="hidden md:flex items-center space-x-8">
             <Link
               href="/"
-              className="relative text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300 font-medium group"
+              className={`relative transition-all duration-300 font-medium group ${
+                pathname === "/" || pathname === "/trendler"
+                  ? "text-blue-600 dark:text-blue-400 font-bold"
+                  : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+              }`}
             >
               Ana Sayfa
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 group-hover:w-full transition-all duration-300"></span>
+              <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 transition-all duration-300 ${
+                pathname === "/" || pathname === "/trendler" ? "w-full" : "w-0 group-hover:w-full"
+              }`}></span>
             </Link>
             {isAuthenticated && (
               <Link
                 href="/profile"
-                className="relative text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-300 font-medium group"
+                className={`relative transition-all duration-300 font-medium group ${
+                  pathname === "/profile"
+                    ? "text-blue-600 dark:text-blue-400 font-bold"
+                    : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+                }`}
               >
                 Profil
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 group-hover:w-full transition-all duration-300"></span>
+                <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 transition-all duration-300 ${
+                  pathname === "/profile" ? "w-full" : "w-0 group-hover:w-full"
+                }`}></span>
               </Link>
             )}
           </nav>
