@@ -10,6 +10,8 @@ import com.blog.blok_api.repository.LikeRepository;
 import com.blog.blok_api.repository.PostRepository;
 import com.blog.blok_api.repository.UserRepository;
 import com.blog.blok_api.security.JwtUtil;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,11 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,14 +33,16 @@ public class UserServiceImpl implements UserService{
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final PostRepository postRepository;
+    private final Cloudinary cloudinary;
 
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, LikeRepository likeRepository, JwtUtil jwtUtil, PasswordEncoder passwordEncoder, PostRepository postRepository) {
+    public UserServiceImpl(UserRepository userRepository, LikeRepository likeRepository, JwtUtil jwtUtil, PasswordEncoder passwordEncoder, PostRepository postRepository, Cloudinary cloudinary) {
         this.userRepository = userRepository;
         this.likeRepository = likeRepository;
         this.jwtUtil = jwtUtil;
         this.passwordEncoder = passwordEncoder;
         this.postRepository = postRepository;
+        this.cloudinary = cloudinary;
     }
 
     @Override
@@ -151,9 +152,6 @@ public class UserServiceImpl implements UserService{
 
 
 
-    @Value("${app.upload.dir}")
-    private String uploadDir;
-
     @Transactional
     public String uploadProfileImage(Long userId, MultipartFile file) throws IOException {
         User user = userRepository.findById(userId)
@@ -164,20 +162,26 @@ public class UserServiceImpl implements UserService{
             throw new IllegalArgumentException("Sadece resim dosyaları yüklenebilir!");
         }
 
-        // Dosya adı benzersiz olsun
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-        Path path = Paths.get(uploadDir, fileName);
-        Files.createDirectories(path.getParent());
+        try {
+            // Cloudinary'e yükle
+            Map<String, Object> uploadParams = ObjectUtils.asMap(
+                    "folder", "profile_images",
+                    "public_id", "profile_" + userId + "_" + UUID.randomUUID(),
+                    "overwrite", false,
+                    "resource_type", "image"
+            );
 
-        // Dosyayı kaydet
-        Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), uploadParams);
+            String imageUrl = (String) uploadResult.get("secure_url");
 
-        // Kullanıcıya image url'yi set et
-        String imageUrl = "/uploads/" + fileName;
-        user.setProfileImgUrl(imageUrl);
-        userRepository.save(user);
+            // Kullanıcıya image url'yi set et
+            user.setProfileImgUrl(imageUrl);
+            userRepository.save(user);
 
-        return imageUrl;
+            return imageUrl;
+        } catch (Exception e) {
+            throw new IOException("Görsel yükleme hatası: " + e.getMessage(), e);
+        }
     }
 
 

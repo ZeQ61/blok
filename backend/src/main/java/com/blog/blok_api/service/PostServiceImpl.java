@@ -7,6 +7,8 @@ import com.blog.blok_api.model.*;
 import com.blog.blok_api.repository.*;
 import com.blog.blok_api.security.JwtUtil;
 import com.blog.blok_api.util.SlugUtil;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -17,14 +19,11 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 
 @Service
 public class PostServiceImpl implements PostService {
@@ -38,16 +37,15 @@ public class PostServiceImpl implements PostService {
     private final LikeService likeService;
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
+    private final Cloudinary cloudinary;
 
-    @Value("${app.upload.dir}")
-    private String uploadDir;
     public PostServiceImpl(PostRepository postRepository,
                            UserRepository userRepository,
                            CategoryRepository categoryRepository,
                            TagRepository tagRepository,
                            JwtUtil jwtUtil,
                            PostMapper postMapper,
-                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository) {
+                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, Cloudinary cloudinary) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -57,6 +55,7 @@ public class PostServiceImpl implements PostService {
         this.likeService = likeService;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
+        this.cloudinary = cloudinary;
     }
 
     @Override
@@ -230,16 +229,23 @@ public class PostServiceImpl implements PostService {
             throw new IllegalArgumentException("Sadece resim dosyaları yüklenebilir!");
         }
 
-        // Dosya adı benzersiz olsun
-        String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
-        Path path = Paths.get(uploadDir, fileName);
-        Files.createDirectories(path.getParent());
+        try {
+            // Cloudinary'e yükle
+            Map<String, Object> uploadParams = ObjectUtils.asMap(
+                    "folder", "post_images",
+                    "public_id", "post_" + userId + "_" + UUID.randomUUID(),
+                    "overwrite", false,
+                    "resource_type", "image"
+            );
 
-        // Dosyayı kaydet
-        Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), uploadParams);
+            String imageUrl = (String) uploadResult.get("secure_url");
 
-        // Image URL'yi döndür
-        return "/uploads/" + fileName;
+            // Image URL'yi döndür
+            return imageUrl;
+        } catch (Exception e) {
+            throw new IOException("Görsel yükleme hatası: " + e.getMessage(), e);
+        }
     }
 
 }
