@@ -268,15 +268,12 @@ export interface Post {
   updatedAt: string
   likeCount: number
   commentCount: number
-  viewsCount: number
   isLiked: boolean
 }
 
 export interface CreatePostRequest {
   title: string
   content: string
-  categoryId?: number
-  tagIds?: number[]
   tagNames?: string[]
   coverImageUrl?: string
 }

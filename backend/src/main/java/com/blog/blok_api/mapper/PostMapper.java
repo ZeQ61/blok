@@ -21,7 +21,7 @@ public interface PostMapper {
     Post toEntity(PostRequestDto dto);
 
     @Mapping(source = "author", target = "author", qualifiedByName = "author")
-    @Mapping(source = "category.name", target = "categoryName")
+    @Mapping(source = "category.name", target = "categoryName", ignore = true) // Category artık kullanılmıyor
     @Mapping(source = "tags", target = "tagNames")
     PostResponseDto toDto(Post post);
 

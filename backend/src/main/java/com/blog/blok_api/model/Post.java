@@ -27,8 +27,8 @@ public class Post {
     @ManyToOne
     private User author;
 
-    @ManyToOne(optional = true)
-    private Category category;
+    @ManyToOne
+    private Category category; // Deprecated - will be removed
 
     @ManyToMany
     @JoinTable(

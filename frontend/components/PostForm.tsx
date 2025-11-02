@@ -74,8 +74,8 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
       const result = await createPost({
         title: title.trim(),
         content: content.trim(),
-        tagNames: tagNames.length > 0 ? tagNames : undefined,
-        coverImageUrl: coverImageUrl || undefined,
+        tagNames: tagNames,
+        coverImageUrl: coverImageUrl,
       })
 
       if (result.success) {
@@ -104,27 +104,29 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
   }
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
+    if (e.key === "Enter" || e.key === "," || e.key === " ") {
       e.preventDefault()
       addTag()
+    } else if (e.key === "Backspace" && tagInput === "" && tagNames.length > 0) {
+      // Son etiketi sil
+      setTagNames((prev) => prev.slice(0, -1))
     }
   }
 
   const addTag = () => {
-    if (!tagInput.trim()) return
-    
-    let tagName = tagInput.trim()
-    // @ işaretini temizle
-    tagName = tagName.replace(/^@+/, "")
-    
-    if (tagName && !tagNames.includes(tagName)) {
-      setTagNames([...tagNames, tagName])
+    const trimmed = tagInput.trim()
+    if (!trimmed) return
+
+    // @ işareti varsa kaldır, yoksa ekle
+    const cleanTag = trimmed.startsWith("@") ? trimmed.substring(1) : trimmed
+    if (cleanTag && !tagNames.includes(cleanTag.toLowerCase())) {
+      setTagNames((prev) => [...prev, cleanTag.toLowerCase()])
       setTagInput("")
     }
   }
 
   const removeTag = (tagName: string) => {
-    setTagNames(tagNames.filter(t => t !== tagName))
+    setTagNames((prev) => prev.filter((t) => t !== tagName))
   }
 
   const addEmoji = (emoji: string) => {
@@ -364,44 +366,49 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           Etiketler (isteğe bağlı)
         </label>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {tagNames.map((tagName) => (
-            <span
-              key={tagName}
-              className="inline-flex items-center px-3 py-2 rounded-2xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+        <div className="space-y-2">
+          {/* Tag input */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagInputKeyDown}
+              placeholder="@araba veya araba yazın..."
+              className="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-blue-300 focus:ring-opacity-30 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-all duration-300"
+            />
+            <button
+              type="button"
+              onClick={addTag}
+              className="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl font-medium hover:from-blue-600 hover:to-purple-600 transition-all duration-200"
             >
-              <Tag className="w-3 h-3 mr-1" />@{tagName}
-              <button
-                type="button"
-                onClick={() => removeTag(tagName)}
-                className="ml-2 hover:text-red-200 transition-colors"
-              >
-                ×
-              </button>
-            </span>
-          ))}
+              Ekle
+            </button>
+          </div>
+          {/* Selected tags */}
+          {tagNames.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tagNames.map((tagName) => (
+                <span
+                  key={tagName}
+                  className="inline-flex items-center px-3 py-2 rounded-2xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                >
+                  <Tag className="w-3 h-3 mr-1" />@{tagName}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tagName)}
+                    className="ml-2 hover:text-gray-200 transition-colors"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            @ işareti ile başlayabilir veya doğrudan yazabilirsiniz. Enter, virgül veya boşluk ile ekleyin.
+          </p>
         </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagInputKeyDown}
-            placeholder="@araba gibi etiket yazın (Enter veya , ile ekleyin)"
-            className="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-blue-300 focus:ring-opacity-30 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-all duration-300"
-          />
-          <button
-            type="button"
-            onClick={addTag}
-            disabled={!tagInput.trim()}
-            className="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Ekle
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          @ işareti ile etiket ekleyebilirsiniz. Örnek: @araba, @teknoloji
-        </p>
       </div>
 
       {/* Toolbar */}

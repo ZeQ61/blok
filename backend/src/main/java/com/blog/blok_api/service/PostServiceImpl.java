@@ -37,7 +37,6 @@ public class PostServiceImpl implements PostService {
     private final LikeService likeService;
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
-    private final PostViewRepository postViewRepository;
     private final Cloudinary cloudinary;
 
     public PostServiceImpl(PostRepository postRepository,
@@ -46,7 +45,7 @@ public class PostServiceImpl implements PostService {
                            TagRepository tagRepository,
                            JwtUtil jwtUtil,
                            PostMapper postMapper,
-                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, PostViewRepository postViewRepository, Cloudinary cloudinary) {
+                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, Cloudinary cloudinary) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -56,7 +55,6 @@ public class PostServiceImpl implements PostService {
         this.likeService = likeService;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
-        this.postViewRepository = postViewRepository;
         this.cloudinary = cloudinary;
     }
 
@@ -66,47 +64,32 @@ public class PostServiceImpl implements PostService {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new Exception("Kullanıcı bulunamadı."));
 
-        // Kategori artık zorunlu değil
-        Category category = null;
-        if (dto.getCategoryId() != null) {
-            category = categoryRepository.findById(dto.getCategoryId())
-                    .orElse(null);
-        }
-
-        // Etiketleri tagNames'ten oluştur veya mevcut olanları kullan
-        Set<Tag> tags = new java.util.HashSet<>();
-        
-        // Önce tagIds varsa onları ekle
-        if (dto.getTagIds() != null && !dto.getTagIds().isEmpty()) {
-            tags.addAll(dto.getTagIds().stream()
-                    .map(id -> tagRepository.findById(id).orElse(null))
-                    .filter(tag -> tag != null)
-                    .collect(Collectors.toSet()));
-        }
-        
-        // Sonra tagNames'ten etiketleri oluştur veya mevcut olanları bul
+        // Tag'leri isimlerinden oluştur veya bul (@araba formatından @ işaretini kaldır)
+        Set<Tag> tags = Set.of();
         if (dto.getTagNames() != null && !dto.getTagNames().isEmpty()) {
-            for (String tagName : dto.getTagNames()) {
-                if (tagName == null || tagName.trim().isEmpty()) continue;
-                
-                // @ işaretini temizle
-                String cleanTagName = tagName.trim().replaceAll("^@+", "");
-                if (cleanTagName.isEmpty()) continue;
-                
-                // Etiketi bul veya oluştur
-                Tag tag = tagRepository.findByNameIgnoreCase(cleanTagName)
-                        .orElseGet(() -> {
-                            Tag newTag = new Tag();
-                            newTag.setName(cleanTagName);
-                            newTag.setSlug(SlugUtil.toSlug(cleanTagName));
-                            return tagRepository.save(newTag);
-                        });
-                tags.add(tag);
-            }
+            tags = dto.getTagNames().stream()
+                    .map(tagName -> {
+                        // @araba -> araba
+                        String tempName = tagName.startsWith("@") ? tagName.substring(1) : tagName;
+                        final String cleanName = tempName.trim().toLowerCase();
+                        if (cleanName.isEmpty()) return null;
+
+                        // Tag var mı kontrol et
+                        return tagRepository.findByNameIgnoreCase(cleanName)
+                                .orElseGet(() -> {
+                                    // Yoksa yeni tag oluştur
+                                    Tag newTag = new Tag();
+                                    newTag.setName(cleanName);
+                                    newTag.setSlug(SlugUtil.toSlug(cleanName));
+                                    return tagRepository.save(newTag);
+                                });
+                    })
+                    .filter(tag -> tag != null)
+                    .collect(Collectors.toSet());
         }
 
         Post post = postMapper.toEntity(dto);
-        post.setCategory(category);
+        post.setCategory(null); // Kategori artık kullanılmıyor
         post.setTags(tags);
         post.setAuthor(author);
         post.setSlug(SlugUtil.generateUniqueSlug(dto.getTitle()));
@@ -144,7 +127,6 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<PostResponseDto> getAllPosts(String token) {
         User currentUser = null;
         if (token != null && !token.isBlank()) {
@@ -157,94 +139,35 @@ public class PostServiceImpl implements PostService {
 
         final User finalCurrentUser = currentUser;
 
-        // Tüm ilişkilerle birlikte postları getir (N+1 problemini önler)
-        List<Post> posts = postRepository.findAllWithRelationsOrderByCreatedAtDesc();
-        
-        if (posts.isEmpty()) {
-            return List.of();
-        }
-        
-        // Post ID'lerini topla
-        List<Long> postIds = posts.stream().map(Post::getId).toList();
-        
-        // Like sayılarını toplu olarak al (her post için ayrı sorgu yerine)
-        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
-        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
-        for (Object[] result : likeCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            likeCountMap.put(postId, count.intValue());
-        }
-        
-        // Kullanıcının beğendiği postları toplu olarak al
-        Set<Long> likedPostIds = finalCurrentUser != null 
-                ? new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(finalCurrentUser.getId(), postIds))
-                : Set.of();
-        
-        // Comment sayılarını toplu olarak al
-        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
-        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
-        for (Object[] result : commentCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            commentCountMap.put(postId, count.intValue());
-        }
-        
-        return posts.stream()
+        // En yeni postları önce getirmek için createdAt'e göre DESC sıralama
+        return postRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
-                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
-                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikeCount(likeService.countByPost(post).intValue());
+                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
+                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PostResponseDto> getMyPosts(String token) {
         Long userId = jwtUtil.extractUserId(token);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı"));
 
-        // Kullanıcının postlarını tüm ilişkilerle birlikte getir
-        List<Post> posts = postRepository.findAllByAuthorWithRelationsOrderByCreatedAtDesc(user.getId());
+        // Kullanıcının postlarını en yeni önce getirmek için createdAt'e göre DESC sıralama
+        List<Post> posts = postRepository.findAllByAuthorOrderByCreatedAtDesc(user);
 
-        if (posts.isEmpty()) {
-            return List.of();
-        }
-        
-        // Post ID'lerini topla
-        List<Long> postIds = posts.stream().map(Post::getId).toList();
-        
-        // Like sayılarını toplu olarak al
-        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
-        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
-        for (Object[] result : likeCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            likeCountMap.put(postId, count.intValue());
-        }
-        
-        // Kullanıcının beğendiği postları toplu olarak al
-        Set<Long> likedPostIds = new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(user.getId(), postIds));
-
-        // Comment sayılarını toplu olarak al
-        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
-        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
-        for (Object[] result : commentCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            commentCountMap.put(postId, count.intValue());
-        }
-
+        final User finalCurrentUser = user;
         return posts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
-                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
-                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikeCount(likeService.countByPost(post).intValue());
+                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
+                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -282,15 +205,11 @@ public class PostServiceImpl implements PostService {
 
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PostResponseDto> getTop5MostLikedPosts(String token) {
-        Pageable top5 = PageRequest.of(0, 5);
+        Pageable top5 = (Pageable) PageRequest.of(0, 5);
 
         List<Post> topPosts = postRepository.findTop5MostLikedPosts(top5);
-        
-        if (topPosts.isEmpty()) {
-            return List.of();
-        }
 
         User currentUser = null;
         if (token != null && !token.isBlank()) {
@@ -302,39 +221,13 @@ public class PostServiceImpl implements PostService {
         }
 
         final User finalCurrentUser = currentUser;
-        
-        // Post ID'lerini topla
-        List<Long> postIds = topPosts.stream().map(Post::getId).toList();
-        
-        // Like sayılarını toplu olarak al
-        Map<Long, Integer> likeCountMap = new java.util.HashMap<>();
-        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
-        for (Object[] result : likeCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            likeCountMap.put(postId, count.intValue());
-        }
-        
-        // Kullanıcının beğendiği postları toplu olarak al
-        Set<Long> likedPostIds = finalCurrentUser != null 
-                ? new java.util.HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(finalCurrentUser.getId(), postIds))
-                : Set.of();
-        
-        // Comment sayılarını toplu olarak al
-        Map<Long, Integer> commentCountMap = new java.util.HashMap<>();
-        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
-        for (Object[] result : commentCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            commentCountMap.put(postId, count.intValue());
-        }
 
         return topPosts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
-                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
-                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikeCount(likeService.countByPost(post).intValue());
+                    dto.setLikedByCurrentUser(finalCurrentUser != null && likeService.hasUserLikedPost(finalCurrentUser, post));
+                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -414,40 +307,6 @@ public class PostServiceImpl implements PostService {
         } catch (Exception e) {
             throw new IOException("Medya yükleme hatası: " + e.getMessage(), e);
         }
-    }
-
-    @Override
-    @Transactional
-    public boolean trackPostView(Long postId, String token) throws Exception {
-        // Token yoksa görüntüleme takip edilemez (opsiyonel olarak anonim kullanıcılar için de yapılabilir)
-        if (token == null || token.isBlank()) {
-            return false;
-        }
-
-        Long userId = jwtUtil.extractUserId(token);
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new Exception("Kullanıcı bulunamadı"));
-        
-        Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new Exception("Post bulunamadı"));
-
-        // Kullanıcı daha önce bu postu görüntüledi mi?
-        if (postViewRepository.existsByUserAndPost(user, post)) {
-            return false; // Zaten görüntülenmiş
-        }
-
-        // PostView kaydı oluştur
-        PostView postView = new PostView();
-        postView.setUser(user);
-        postView.setPost(post);
-        postView.setViewedAt(LocalDateTime.now());
-        postViewRepository.save(postView);
-
-        // Post'un görüntüleme sayısını artır
-        post.setViewsCount(post.getViewsCount() + 1);
-        postRepository.save(post);
-
-        return true; // Yeni görüntüleme kaydedildi
     }
 
 }

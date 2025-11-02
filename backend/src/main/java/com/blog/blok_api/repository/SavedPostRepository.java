@@ -17,13 +17,7 @@ public interface SavedPostRepository extends JpaRepository<SavedPost, Long> {
     Optional<SavedPost> findByUserAndPost(User user, Post post);
     List<SavedPost> findAllByUserOrderByCreatedAtDesc(User user);
     
-    @Query("SELECT DISTINCT sp.post FROM SavedPost sp " +
-           "LEFT JOIN FETCH sp.post.author a " +
-           "LEFT JOIN FETCH a.role " +
-           "LEFT JOIN FETCH sp.post.category " +
-           "LEFT JOIN FETCH sp.post.tags " +
-           "WHERE sp.user.id = :userId " +
-           "ORDER BY sp.createdAt DESC")
+    @Query("SELECT sp.post FROM SavedPost sp WHERE sp.user.id = :userId ORDER BY sp.createdAt DESC")
     List<Post> findSavedPostsByUserId(@Param("userId") Long userId);
     
     void deleteByUserAndPost(User user, Post post);

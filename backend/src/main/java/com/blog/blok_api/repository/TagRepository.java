@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface TagRepository extends JpaRepository<Tag, Long> {
     java.util.Optional<Tag> findByNameIgnoreCase(String name);
+    boolean existsByNameIgnoreCase(String name);
 } 

@@ -18,7 +18,6 @@ function mapPostResponseDtoToPost(post: any): Post {
     updatedAt: post.updatedAt || '',
     likeCount: post.likeCount || 0,
     commentCount: post.commentCount || 0,
-    viewsCount: post.viewsCount || 0,
     isLiked: post.likedByCurrentUser || false,
   };
 }
@@ -203,23 +202,6 @@ export function usePosts() {
     }
   }
 
-  const trackPostView = async (postId: string): Promise<{ success: boolean; error?: string }> => {
-    try {
-      clearError()
-      const response = await apiClient.post<{ success: boolean; message?: string; error?: string }>(`/api/posts/${postId}/view`)
-      if (response.status === 200 && response.data) {
-        return { success: response.data.success || false }
-      } else {
-        handleApiErr(response)
-        return { success: false, error: response.error || "Görüntüleme kaydedilemedi" }
-      }
-    } catch (error) {
-      handleError(error, "trackPostView")
-      handleApiError(error, "Posts - Track View")
-      return { success: false, error: "Bağlantı hatası" }
-    }
-  }
-
   const retryFetch = () => {
     fetchPosts()
   }
@@ -241,7 +223,6 @@ export function usePosts() {
     toggleSavePost,
     getSavedPosts,
     isPostSaved,
-    trackPostView,
     retryFetch,
   }
 }

@@ -16,12 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -143,48 +139,16 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PostResponseDto> getPostsUserCommentedOn(Long userId) {
         List<Post> posts = commentRepository.findDistinctPostsByAuthorId(userId);
-        
-        if (posts.isEmpty()) {
-            return List.of();
-        }
-        
         User currentUser = userRepository.findById(userId).orElse(null);
-        
-        // Post ID'lerini topla
-        List<Long> postIds = posts.stream().map(Post::getId).toList();
-        
-        // Like sayılarını toplu olarak al
-        Map<Long, Integer> likeCountMap = new HashMap<>();
-        List<Object[]> likeCounts = likeRepository.countLikesByPostIds(postIds);
-        for (Object[] result : likeCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            likeCountMap.put(postId, count.intValue());
-        }
-        
-        // Kullanıcının beğendiği postları toplu olarak al
-        Set<Long> likedPostIds = currentUser != null 
-                ? new HashSet<>(likeRepository.findLikedPostIdsByUserAndPosts(userId, postIds))
-                : Set.of();
-        
-        // Comment sayılarını toplu olarak al
-        Map<Long, Integer> commentCountMap = new HashMap<>();
-        List<Object[]> commentCounts = commentRepository.countCommentsByPostIds(postIds);
-        for (Object[] result : commentCounts) {
-            Long postId = ((Number) result[0]).longValue();
-            Long count = ((Number) result[1]).longValue();
-            commentCountMap.put(postId, count.intValue());
-        }
-        
         return posts.stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
-                    dto.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
-                    dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
-                    dto.setCommentCount(commentCountMap.getOrDefault(post.getId(), 0));
+                    dto.setLikeCount(likeService.countByPost(post).intValue());
+                    dto.setLikedByCurrentUser(currentUser != null && likeService.hasUserLikedPost(currentUser, post));
+                    dto.setCommentCount(post.getComments() != null ? (int) post.getComments().stream().filter(c -> !c.isDeleted()).count() : 0);
                     return dto;
                 })
                 .collect(Collectors.toList());
