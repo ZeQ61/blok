@@ -127,4 +127,14 @@ public class PostController {
         return ResponseEntity.ok(imageUrl);
     }
 
+    @PostMapping("/upload-media")
+    public ResponseEntity<String> uploadPostMedia(
+            @RequestHeader("Authorization") String authHeader,
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
+        String token = authHeader.replace("Bearer ", "");
+        String mediaUrl = postService.uploadPostMedia(token, file);
+        return ResponseEntity.ok(mediaUrl);
+    }
+
 } 

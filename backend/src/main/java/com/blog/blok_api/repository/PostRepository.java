@@ -18,6 +18,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByAuthor(User user);
 
     List<Post> findAllByAuthor(User user);
+    
+    // Kullanıcının postlarını en yeni önce getirmek için
+    List<Post> findAllByAuthorOrderByCreatedAtDesc(User user);
     @Query("""
     SELECT p 
     FROM Post p 
@@ -35,4 +38,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     void deleteAllByAuthor(User user);
     
     boolean existsBySlug(String slug);
+    
+    // En yeni postları önce getirmek için (createdAt'e göre DESC)
+    List<Post> findAllByOrderByCreatedAtDesc();
 } 

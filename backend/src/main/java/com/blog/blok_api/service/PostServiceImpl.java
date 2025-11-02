@@ -125,7 +125,8 @@ public class PostServiceImpl implements PostService {
 
         final User finalCurrentUser = currentUser;
 
-        return postRepository.findAll().stream()
+        // En yeni postları önce getirmek için createdAt'e göre DESC sıralama
+        return postRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(post -> {
                     PostResponseDto dto = postMapper.toDto(post);
                     dto.setLikeCount(likeService.countByPost(post).intValue());
@@ -143,7 +144,8 @@ public class PostServiceImpl implements PostService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı"));
 
-        List<Post> posts = postRepository.findAllByAuthor(user);
+        // Kullanıcının postlarını en yeni önce getirmek için createdAt'e göre DESC sıralama
+        List<Post> posts = postRepository.findAllByAuthorOrderByCreatedAtDesc(user);
 
         final User finalCurrentUser = user;
         return posts.stream()
@@ -245,6 +247,51 @@ public class PostServiceImpl implements PostService {
             return imageUrl;
         } catch (Exception e) {
             throw new IOException("Görsel yükleme hatası: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public String uploadPostMedia(String token, MultipartFile file) throws IOException {
+        // Token'dan kullanıcı ID'sini al
+        Long userId = jwtUtil.extractUserId(token);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("Kullanıcı bulunamadı: " + userId));
+
+        String contentType = file.getContentType();
+        if (contentType == null) {
+            throw new IllegalArgumentException("Dosya tipi belirlenemedi!");
+        }
+
+        String resourceType;
+        String folder;
+        
+        // Dosya tipine göre resource type ve folder belirle
+        if (contentType.startsWith("image/")) {
+            resourceType = "image";
+            folder = "post_images";
+        } else if (contentType.startsWith("video/")) {
+            resourceType = "video";
+            folder = "post_videos";
+        } else {
+            throw new IllegalArgumentException("Sadece resim ve video dosyaları yüklenebilir! Desteklenen format: " + contentType);
+        }
+
+        try {
+            // Cloudinary'e yükle
+            Map<String, Object> uploadParams = ObjectUtils.asMap(
+                    "folder", folder,
+                    "public_id", "post_" + userId + "_" + UUID.randomUUID(),
+                    "overwrite", false,
+                    "resource_type", resourceType
+            );
+
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), uploadParams);
+            String mediaUrl = (String) uploadResult.get("secure_url");
+
+            // Media URL'yi döndür
+            return mediaUrl;
+        } catch (Exception e) {
+            throw new IOException("Medya yükleme hatası: " + e.getMessage(), e);
         }
     }
 

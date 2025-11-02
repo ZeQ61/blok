@@ -132,6 +132,27 @@ export function usePosts() {
     }
   }
 
+  const uploadPostMedia = async (file: File): Promise<{ success: boolean; mediaUrl?: string; error?: string }> => {
+    try {
+      clearError()
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await apiClient.uploadFile<string>("/api/posts/upload-media", formData)
+
+      if (response.data) {
+        return { success: true, mediaUrl: response.data }
+      } else {
+        handleApiErr(response)
+        return { success: false, error: response.error || "Medya yüklenemedi" }
+      }
+    } catch (error) {
+      handleError(error, "uploadPostMedia")
+      handleApiError(error, "Posts - Upload Media")
+      return { success: false, error: "Bağlantı hatası" }
+    }
+  }
+
   const retryFetch = () => {
     fetchPosts()
   }
@@ -149,6 +170,7 @@ export function usePosts() {
     toggleLike,
     deletePost,
     uploadPostImage,
+    uploadPostMedia,
     retryFetch,
   }
 }

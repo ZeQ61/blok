@@ -1,10 +1,7 @@
 package com.blog.blok_api.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,7 +16,8 @@ public class Post {
     @Column(unique = true)
     private String slug; // url/my-first-post
     private String summary;
-    @Lob private String content;
+    @Column(columnDefinition = "TEXT")
+    private String content;
     private String coverImageUrl;
     private boolean isPublished;
     private int viewsCount;

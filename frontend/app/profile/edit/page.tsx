@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import Header from "@/components/Header"
 import { User, Mail, Camera, Save, ArrowLeft, Eye, EyeOff, Shield, Bell, Globe, Lock, Palette } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { getImageUrl } from "@/lib/utils"
 
 interface UserProfile {
   id: string

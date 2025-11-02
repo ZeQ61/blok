@@ -19,4 +19,5 @@ public interface PostService {
 
     List<PostResponseDto> getTop5MostLikedPosts(String token);
     String uploadPostImage(String token, MultipartFile file) throws IOException;
+    String uploadPostMedia(String token, MultipartFile file) throws IOException;
 }

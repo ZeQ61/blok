@@ -164,17 +164,28 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
             {/* Content */}
             <p className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">{post.content}</p>
 
-            {/* Cover Image */}
+            {/* Cover Media (Image or Video) */}
             {post.coverImageUrl && (
               <div className="mt-4">
-                <img
-                  src={getImageUrl(post.coverImageUrl)}
-                  alt={post.title}
-                  className="w-full max-w-2xl h-64 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow duration-300"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = 'none'
-                  }}
-                />
+                {post.coverImageUrl.includes('/video/upload') || post.coverImageUrl.match(/\.(mp4|webm|ogg|mov)$/i) ? (
+                  <video
+                    src={getImageUrl(post.coverImageUrl)}
+                    controls
+                    className="w-full max-w-2xl h-64 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow duration-300"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLVideoElement).style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={getImageUrl(post.coverImageUrl)}
+                    alt={post.title}
+                    className="w-full max-w-2xl h-64 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow duration-300"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
+                )}
               </div>
             )}
 
