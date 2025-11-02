@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import CommentSection from "./CommentSection"
 import ShareModal from "./ShareModal"
 import type { Post } from "@/lib/api"
+import { getImageUrl } from "@/lib/utils"
 
 interface PostCardProps {
   post: Post
@@ -167,7 +168,7 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
             {post.coverImageUrl && (
               <div className="mt-4">
                 <img
-                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${post.coverImageUrl}`}
+                  src={getImageUrl(post.coverImageUrl)}
                   alt={post.title}
                   className="w-full max-w-2xl h-64 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:shadow-lg transition-shadow duration-300"
                   onError={(e) => {

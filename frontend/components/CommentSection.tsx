@@ -6,6 +6,7 @@ import { useState } from "react"
 import { Trash2, Reply, Heart, Loader2, AlertCircle } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useComments } from "@/hooks/useComments"
+import { getImageUrl } from "@/lib/utils"
 
 interface CommentSectionProps {
   postId: string
@@ -94,7 +95,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
           {comment.author.profileImgUrl ? (
             <img
-              src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${comment.author.profileImgUrl}`}
+              src={getImageUrl(comment.author.profileImgUrl)}
               alt={comment.author.username}
               className="w-8 h-8 rounded-full object-cover"
               onError={(e) => {

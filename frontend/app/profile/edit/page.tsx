@@ -284,7 +284,7 @@ export default function EditProfilePage() {
                   <div className="w-32 h-32 bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 rounded-3xl flex items-center justify-center text-white text-4xl font-bold border-4 border-white dark:border-gray-800">
                     {profile.profileImgUrl ? (
                       <img
-                        src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${profile.profileImgUrl}`}
+                        src={getImageUrl(profile.profileImgUrl)}
                         alt="Avatar"
                         className="w-full h-full rounded-3xl object-cover"
                         onError={(e) => {

@@ -6,6 +6,7 @@ import { useTheme } from "@/contexts/ThemeContext"
 import { Moon, Sun, User, LogOut, Sparkles, Bell, Settings } from "lucide-react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { getImageUrl } from "@/lib/utils"
 
 export default function Header() {
   const router = useRouter();
@@ -83,7 +84,7 @@ export default function Header() {
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 text-white font-bold text-sm flex items-center justify-center">
                       {user?.profileImgUrl ? (
                         <img
-                          src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${user.profileImgUrl}`}
+                          src={getImageUrl(user.profileImgUrl)}
                           alt={user?.username || "user"}
                           className="w-10 h-10 object-cover"
                           onError={(e) => {

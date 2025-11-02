@@ -7,6 +7,7 @@ import { Tag, ImageIcon, Smile, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useCategories, useTags } from "@/hooks/useCategories"
 import { usePosts } from "@/hooks/usePosts"
+import { getImageUrl } from "@/lib/utils"
 
 interface PostFormProps {
   onPostCreated?: () => void
@@ -201,7 +202,7 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold">
           {user?.profileImgUrl ? (
             <img
-              src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${user.profileImgUrl}`}
+              src={getImageUrl(user.profileImgUrl)}
               alt={user.username}
               className="w-12 h-12 rounded-2xl object-cover"
               onError={(e) => {

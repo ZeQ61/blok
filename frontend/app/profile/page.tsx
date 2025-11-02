@@ -10,6 +10,7 @@ import { apiClient } from "@/lib/api"
 import { usePosts } from "@/hooks/usePosts"
 import { useToast } from "@/hooks/use-toast"
 import ProfileImageUploader from "@/components/ProfileImageUploader"
+import { getImageUrl } from "@/lib/utils"
 
 interface UserStats {
   postsCount: number
@@ -194,7 +195,7 @@ export default function ProfilePage() {
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold overflow-hidden">
                   {user.profileImgUrl ? (
                     <img
-                      src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${user.profileImgUrl}`}
+                      src={getImageUrl(user.profileImgUrl)}
                       alt={user.username}
                       className="w-20 h-20 object-cover"
                       onError={(e) => {
