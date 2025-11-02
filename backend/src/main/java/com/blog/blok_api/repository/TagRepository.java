@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TagRepository extends JpaRepository<Tag, Long> {
-    // Ek sorgular eklenebilir
+    java.util.Optional<Tag> findByNameIgnoreCase(String name);
 } 

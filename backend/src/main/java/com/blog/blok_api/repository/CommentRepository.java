@@ -15,7 +15,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findAllByPostId(Long postId);
     Optional<Comment> findByIdAndAuthorId(Long commentId, Long authorId);
 
-    @Query("SELECT DISTINCT c.post FROM Comment c WHERE c.author.id = :userId")
+    @Query("SELECT DISTINCT c.post FROM Comment c WHERE c.author.id = :userId AND c.isDeleted = false GROUP BY c.post.id ORDER BY MAX(c.createdAt) DESC")
     List<Post> findDistinctPostsByAuthorId(Long userId);
 
     void deleteAllByAuthor(User user);

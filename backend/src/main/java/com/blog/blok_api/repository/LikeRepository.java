@@ -27,7 +27,7 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
 
     void deleteAllByPostId(Long postId);
     void deleteAllByCommentIdIn(List<Long> commentIds); // önemli!
-    @Query("SELECT l.post FROM Like l WHERE l.user.id = :userId")
+    @Query("SELECT l.post FROM Like l WHERE l.user.id = :userId AND l.post IS NOT NULL ORDER BY l.likedAt DESC")
     List<Post> findLikedPostsByUserId(@Param("userId") Long userId);
 
     List<Like> findAllByUserId(Long userId);

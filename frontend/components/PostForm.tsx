@@ -5,7 +5,6 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Tag, ImageIcon, Video, Smile, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
-import { useCategories, useTags } from "@/hooks/useCategories"
 import { usePosts } from "@/hooks/usePosts"
 import { getImageUrl } from "@/lib/utils"
 
@@ -15,14 +14,12 @@ interface PostFormProps {
 
 export default function PostForm({ onPostCreated }: PostFormProps) {
   const { token, user } = useAuth()
-  const { categories } = useCategories()
-  const { tags } = useTags()
   const { createPost, uploadPostImage, uploadPostMedia } = usePosts()
 
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
-  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+  const [tagInput, setTagInput] = useState("")
+  const [tagNames, setTagNames] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [error, setError] = useState("")
@@ -55,7 +52,7 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!token || !title.trim() || !content.trim() || !selectedCategoryId || isSubmitting) return
+    if (!token || !title.trim() || !content.trim() || isSubmitting) return
 
     setIsSubmitting(true)
     setError("")
@@ -77,16 +74,15 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
       const result = await createPost({
         title: title.trim(),
         content: content.trim(),
-        categoryId: selectedCategoryId,
-        tagIds: selectedTagIds,
-        coverImageUrl: coverImageUrl,
+        tagNames: tagNames.length > 0 ? tagNames : undefined,
+        coverImageUrl: coverImageUrl || undefined,
       })
 
       if (result.success) {
         setTitle("")
         setContent("")
-        setSelectedCategoryId(null)
-        setSelectedTagIds([])
+        setTagInput("")
+        setTagNames([])
         setSelectedMedia(null)
         setMediaPreview(null)
         setMediaType(null)
@@ -107,8 +103,28 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
     }
   }
 
-  const handleTagToggle = (tagId: number) => {
-    setSelectedTagIds((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]))
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault()
+      addTag()
+    }
+  }
+
+  const addTag = () => {
+    if (!tagInput.trim()) return
+    
+    let tagName = tagInput.trim()
+    // @ işaretini temizle
+    tagName = tagName.replace(/^@+/, "")
+    
+    if (tagName && !tagNames.includes(tagName)) {
+      setTagNames([...tagNames, tagName])
+      setTagInput("")
+    }
+  }
+
+  const removeTag = (tagName: string) => {
+    setTagNames(tagNames.filter(t => t !== tagName))
   }
 
   const addEmoji = (emoji: string) => {
@@ -343,47 +359,48 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
         className="hidden"
       />
 
-      {/* Category selection */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Kategori *</label>
-        <select
-          value={selectedCategoryId || ""}
-          onChange={(e) => setSelectedCategoryId(Number(e.target.value) || null)}
-          className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-blue-300 focus:ring-opacity-30 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-all duration-300"
-          required
-        >
-          <option value="">Kategori seçin...</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Tags selection */}
+      {/* Tags input */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           Etiketler (isteğe bağlı)
         </label>
         <div className="flex flex-wrap gap-2 mb-3">
-          {tags.map((tag) => (
-            <button
-              key={tag.id}
-              type="button"
-              onClick={() => handleTagToggle(tag.id)}
-              className={`inline-flex items-center px-3 py-2 rounded-2xl text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
-                selectedTagIds.includes(tag.id)
-                  ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                  : "bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-700 dark:text-gray-300 hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20"
-              }`}
+          {tagNames.map((tagName) => (
+            <span
+              key={tagName}
+              className="inline-flex items-center px-3 py-2 rounded-2xl text-sm font-medium bg-gradient-to-r from-blue-500 to-purple-500 text-white"
             >
-              <Tag className="w-3 h-3 mr-1" />#{tag.name}
-            </button>
+              <Tag className="w-3 h-3 mr-1" />@{tagName}
+              <button
+                type="button"
+                onClick={() => removeTag(tagName)}
+                className="ml-2 hover:text-red-200 transition-colors"
+              >
+                ×
+              </button>
+            </span>
           ))}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          İstediğiniz etiketleri seçin. Seçilen: {selectedTagIds.length}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagInputKeyDown}
+            placeholder="@araba gibi etiket yazın (Enter veya , ile ekleyin)"
+            className="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-blue-300 focus:ring-opacity-30 focus:border-blue-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 transition-all duration-300"
+          />
+          <button
+            type="button"
+            onClick={addTag}
+            disabled={!tagInput.trim()}
+            className="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Ekle
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          @ işareti ile etiket ekleyebilirsiniz. Örnek: @araba, @teknoloji
         </p>
       </div>
 
@@ -443,7 +460,7 @@ export default function PostForm({ onPostCreated }: PostFormProps) {
 
         <button
           type="submit"
-          disabled={!title.trim() || !content.trim() || !selectedCategoryId || isSubmitting}
+          disabled={!title.trim() || !content.trim() || isSubmitting}
           className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
           {isSubmitting ? (

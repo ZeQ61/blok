@@ -41,6 +41,7 @@ interface Post {
   updatedAt: string
   likeCount: number
   commentCount: number
+  viewsCount: number
   isLiked: boolean
 }
 
@@ -84,6 +85,7 @@ export default function ProfilePage() {
     updatedAt: p.updatedAt,
     likeCount: p.likeCount ?? 0,
     commentCount: p.commentCount ?? 0,
+    viewsCount: p.viewsCount ?? 0,
     isLiked: p.likedByCurrentUser ?? false,
   })
 

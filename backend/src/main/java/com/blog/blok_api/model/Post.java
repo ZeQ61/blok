@@ -27,7 +27,7 @@ public class Post {
     @ManyToOne
     private User author;
 
-    @ManyToOne
+    @ManyToOne(optional = true)
     private Category category;
 
     @ManyToMany

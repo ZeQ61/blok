@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
+import java.util.Map;
 import java.io.IOException;
 
 
@@ -135,6 +136,24 @@ public class PostController {
         String token = authHeader.replace("Bearer ", "");
         String mediaUrl = postService.uploadPostMedia(token, file);
         return ResponseEntity.ok(mediaUrl);
+    }
+
+    @PostMapping("/{id}/view")
+    public ResponseEntity<?> trackPostView(
+            @PathVariable Long id,
+            @RequestHeader(name = "Authorization", required = false) String authHeader
+    ) {
+        try {
+            String token = authHeader != null && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : "";
+            boolean tracked = postService.trackPostView(id, token);
+            if (tracked) {
+                return ResponseEntity.ok(Map.of("success", true, "message", "Görüntüleme kaydedildi"));
+            } else {
+                return ResponseEntity.ok(Map.of("success", false, "message", "Zaten görüntülenmiş veya oturum açılmamış"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "error", e.getMessage()));
+        }
     }
 
 } 

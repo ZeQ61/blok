@@ -37,6 +37,7 @@ public class PostServiceImpl implements PostService {
     private final LikeService likeService;
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
+    private final PostViewRepository postViewRepository;
     private final Cloudinary cloudinary;
 
     public PostServiceImpl(PostRepository postRepository,
@@ -45,7 +46,7 @@ public class PostServiceImpl implements PostService {
                            TagRepository tagRepository,
                            JwtUtil jwtUtil,
                            PostMapper postMapper,
-                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, Cloudinary cloudinary) {
+                           LikeService likeService, LikeRepository likeRepository, CommentRepository commentRepository, PostViewRepository postViewRepository, Cloudinary cloudinary) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
@@ -55,6 +56,7 @@ public class PostServiceImpl implements PostService {
         this.likeService = likeService;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
+        this.postViewRepository = postViewRepository;
         this.cloudinary = cloudinary;
     }
 
@@ -64,15 +66,44 @@ public class PostServiceImpl implements PostService {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new Exception("Kullanıcı bulunamadı."));
 
-        Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new Exception("Kategori bulunamadı."));
+        // Kategori artık zorunlu değil
+        Category category = null;
+        if (dto.getCategoryId() != null) {
+            category = categoryRepository.findById(dto.getCategoryId())
+                    .orElse(null);
+        }
 
-        Set<Tag> tags = dto.getTagIds() != null
-                ? dto.getTagIds().stream()
-                .map(id -> tagRepository.findById(id).orElse(null))
-                .filter(tag -> tag != null)
-                .collect(Collectors.toSet())
-                : Set.of();
+        // Etiketleri tagNames'ten oluştur veya mevcut olanları kullan
+        Set<Tag> tags = new java.util.HashSet<>();
+        
+        // Önce tagIds varsa onları ekle
+        if (dto.getTagIds() != null && !dto.getTagIds().isEmpty()) {
+            tags.addAll(dto.getTagIds().stream()
+                    .map(id -> tagRepository.findById(id).orElse(null))
+                    .filter(tag -> tag != null)
+                    .collect(Collectors.toSet()));
+        }
+        
+        // Sonra tagNames'ten etiketleri oluştur veya mevcut olanları bul
+        if (dto.getTagNames() != null && !dto.getTagNames().isEmpty()) {
+            for (String tagName : dto.getTagNames()) {
+                if (tagName == null || tagName.trim().isEmpty()) continue;
+                
+                // @ işaretini temizle
+                String cleanTagName = tagName.trim().replaceAll("^@+", "");
+                if (cleanTagName.isEmpty()) continue;
+                
+                // Etiketi bul veya oluştur
+                Tag tag = tagRepository.findByNameIgnoreCase(cleanTagName)
+                        .orElseGet(() -> {
+                            Tag newTag = new Tag();
+                            newTag.setName(cleanTagName);
+                            newTag.setSlug(SlugUtil.toSlug(cleanTagName));
+                            return tagRepository.save(newTag);
+                        });
+                tags.add(tag);
+            }
+        }
 
         Post post = postMapper.toEntity(dto);
         post.setCategory(category);
@@ -293,6 +324,40 @@ public class PostServiceImpl implements PostService {
         } catch (Exception e) {
             throw new IOException("Medya yükleme hatası: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    @Transactional
+    public boolean trackPostView(Long postId, String token) throws Exception {
+        // Token yoksa görüntüleme takip edilemez (opsiyonel olarak anonim kullanıcılar için de yapılabilir)
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        Long userId = jwtUtil.extractUserId(token);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new Exception("Kullanıcı bulunamadı"));
+        
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new Exception("Post bulunamadı"));
+
+        // Kullanıcı daha önce bu postu görüntüledi mi?
+        if (postViewRepository.existsByUserAndPost(user, post)) {
+            return false; // Zaten görüntülenmiş
+        }
+
+        // PostView kaydı oluştur
+        PostView postView = new PostView();
+        postView.setUser(user);
+        postView.setPost(post);
+        postView.setViewedAt(LocalDateTime.now());
+        postViewRepository.save(postView);
+
+        // Post'un görüntüleme sayısını artır
+        post.setViewsCount(post.getViewsCount() + 1);
+        postRepository.save(post);
+
+        return true; // Yeni görüntüleme kaydedildi
     }
 
 }

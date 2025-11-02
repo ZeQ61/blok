@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Heart, MessageCircle, Trash2, Tag, Share2, Bookmark, MoreHorizontal, Calendar } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Heart, MessageCircle, Trash2, Tag, Share2, Bookmark, MoreHorizontal, Calendar, Eye } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import CommentSection from "./CommentSection"
 import ShareModal from "./ShareModal"
@@ -17,7 +17,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
   const { user, isAdmin, token } = useAuth()
-  const { toggleSavePost, isPostSaved } = usePosts()
+  const { toggleSavePost, isPostSaved, trackPostView } = usePosts()
   const [showComments, setShowComments] = useState(false)
   const [isLiking, setIsLiking] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
@@ -25,6 +25,8 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
+  const cardRef = useRef<HTMLElement | null>(null)
+  const [hasViewed, setHasViewed] = useState(false)
 
   // Check if post is saved on mount
   useEffect(() => {
@@ -40,6 +42,38 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Track post view when card is visible on screen
+  useEffect(() => {
+    if (!token || hasViewed || !cardRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !hasViewed) {
+            // Post görünür olduğunda view tracking yap
+            trackPostView(post.id).then((result) => {
+              if (result.success) {
+                setHasViewed(true)
+                // ViewsCount'u optimistic update ile artır (gerçek sayı backend'den gelecek)
+              }
+            })
+            observer.disconnect()
+          }
+        })
+      },
+      {
+        threshold: 0.3, // Post'un %30'u görünür olduğunda tetikle
+        rootMargin: '0px 0px -100px 0px', // Alt kısımdan 100px önce tetikle
+      }
+    )
+
+    observer.observe(cardRef.current)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [post.id, token, hasViewed, trackPostView])
 
   const handleLike = async () => {
     if (!token || isLiking || !onLike) return
@@ -139,7 +173,7 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
 
   return (
     <>
-      <article className="card p-6 slide-in-up group">
+      <article ref={cardRef} className="card p-6 slide-in-up group">
         <div className="flex items-start space-x-4">
           {/* Avatar */}
           <div className="relative">
@@ -251,13 +285,6 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
               </div>
             )}
 
-            {/* Category */}
-            <div className="mt-3">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/30 dark:to-blue-900/30 text-green-800 dark:text-green-200">
-                📁 {post.category?.name}
-              </span>
-            </div>
-
             {/* Tags */}
             {post.tags?.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-4">
@@ -297,6 +324,11 @@ export default function PostCard({ post, onDelete, onLike }: PostCardProps) {
                   <MessageCircle className="w-4 h-4" />
                   <span className="font-medium">{post.commentCount}</span>
                 </button>
+
+                <div className="flex items-center space-x-2 px-4 py-2 rounded-2xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  <Eye className="w-4 h-4" />
+                  <span className="font-medium">{post.viewsCount || 0}</span>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">
