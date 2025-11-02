@@ -1,4 +1,5 @@
 package com.blog.blok_api.repository;
+
 import com.blog.blok_api.model.Comment;
 import com.blog.blok_api.model.Like;
 import com.blog.blok_api.model.User;
@@ -10,8 +11,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+
 @Repository
 public interface LikeRepository extends JpaRepository<Like, Long> {
+
     boolean existsByUserAndPost(User user, Post post);
     boolean existsByUserAndComment(User user, Comment comment);
 
@@ -22,22 +25,30 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     Long countByComment(Comment comment);
 
     int countByPostId(Long postId);
+
     @Query("SELECT COUNT(l) FROM Like l WHERE l.post.author.id = :userId")
     int countByAuthorPosts(@Param("userId") Long userId);
 
     void deleteAllByPostId(Long postId);
-    void deleteAllByCommentIdIn(List<Long> commentIds); // önemli!
+    void deleteAllByCommentIdIn(List<Long> commentIds);
+    void deleteAllByUser(User user);
+    void deleteAllByPost(Post post);
+
     @Query("SELECT l.post FROM Like l WHERE l.user.id = :userId")
     List<Post> findLikedPostsByUserId(@Param("userId") Long userId);
 
-    List<Like> findAllByUserId(Long userId);
+    // ====== OPTİMİZASYON EKLERİ ======
 
-    void deleteAllByUser(User user);
+    // NEW: Tek post için beğenmiş mi? (ID ile, nesne yüklemeden)
+    @Query("SELECT COUNT(l) > 0 FROM Like l WHERE l.user.id = :userId AND l.post.id = :postId")
+    boolean hasUserLiked(@Param("userId") Long userId, @Param("postId") Long postId);
 
-    void deleteAllByPost(Post post);
+    // NEW: Görüntülenen post listesi içinde hangilerini beğenmiş? (tek sorgu)
+    @Query("""
+           SELECT l.post.id
+           FROM Like l
+           WHERE l.user.id = :userId AND l.post.id IN :postIds
+           """)
+    List<Long> findLikedPostIdsByUserIdAndPostIds(@Param("userId") Long userId,
+                                                  @Param("postIds") List<Long> postIds);
 }
-
-
-
-
-
