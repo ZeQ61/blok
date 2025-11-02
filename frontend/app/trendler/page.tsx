@@ -10,6 +10,7 @@ interface Post {
   id: string;
   title: string;
   content: string;
+  coverImageUrl?: string;
   author: {
     id: string;
     username: string;
@@ -40,6 +41,7 @@ export default function TrendlerPage() {
     id: String(p.id),
     title: p.title,
     content: p.content,
+    coverImageUrl: p.coverImageUrl || p.coverImageURL || undefined,
     author: {
       id: String(p.author?.id ?? ""),
       username: p.author?.username ?? "",

@@ -8,6 +8,7 @@ import { handleApiError } from "@/lib/errorReporting"
 function mapPostResponseDtoToPost(post: any): Post {
   return {
     ...post,
+    coverImageUrl: post.coverImageUrl || post.coverImageURL || undefined,
     category: { id: 0, name: post.categoryName },
     tags: post.tagNames?.map((name: string, i: number) => ({ id: i, name })) || [],
     author: post.author || { id: '', username: 'Bilinmeyen' },
